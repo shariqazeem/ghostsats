@@ -7,6 +7,6 @@ pub struct BatchResult {
 }
 
 pub mod shielded_pool;
-pub mod ekubo_interface;
+pub mod avnu_interface;
 pub mod mock_erc20;
-pub mod mock_ekubo_router;
+pub mod mock_avnu_router;
