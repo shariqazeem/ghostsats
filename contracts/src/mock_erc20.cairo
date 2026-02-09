@@ -15,9 +15,19 @@ pub mod MockERC20 {
 
     #[storage]
     struct Storage {
+        token_name: ByteArray,
+        token_symbol: ByteArray,
+        token_decimals: u8,
         balances: Map<ContractAddress, u256>,
         allowances: Map<ContractAddress, Map<ContractAddress, u256>>,
         total_supply: u256,
+    }
+
+    #[constructor]
+    fn constructor(ref self: ContractState, name: ByteArray, symbol: ByteArray, decimals: u8) {
+        self.token_name.write(name);
+        self.token_symbol.write(symbol);
+        self.token_decimals.write(decimals);
     }
 
     #[abi(embed_v0)]
@@ -26,6 +36,21 @@ pub mod MockERC20 {
             let current = self.balances.entry(to).read();
             self.balances.entry(to).write(current + amount);
             self.total_supply.write(self.total_supply.read() + amount);
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl ERC20MetadataImpl of openzeppelin_interfaces::token::erc20::IERC20Metadata<ContractState> {
+        fn name(self: @ContractState) -> ByteArray {
+            self.token_name.read()
+        }
+
+        fn symbol(self: @ContractState) -> ByteArray {
+            self.token_symbol.read()
+        }
+
+        fn decimals(self: @ContractState) -> u8 {
+            self.token_decimals.read()
         }
     }
 
@@ -78,6 +103,26 @@ pub mod MockERC20 {
             let caller = get_caller_address();
             self.allowances.entry(caller).entry(spender).write(amount);
             true
+        }
+    }
+
+    #[abi(embed_v0)]
+    impl ERC20CamelImpl of openzeppelin_interfaces::token::erc20::IERC20CamelOnly<ContractState> {
+        fn totalSupply(self: @ContractState) -> u256 {
+            self.total_supply.read()
+        }
+
+        fn balanceOf(self: @ContractState, account: ContractAddress) -> u256 {
+            self.balances.entry(account).read()
+        }
+
+        fn transferFrom(
+            ref self: ContractState,
+            sender: ContractAddress,
+            recipient: ContractAddress,
+            amount: u256,
+        ) -> bool {
+            ERC20Impl::transfer_from(ref self, sender, recipient, amount)
         }
     }
 }
