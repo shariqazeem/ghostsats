@@ -1,0 +1,15 @@
+{
+  "network": "sepolia",
+  "contracts": {
+    "usdc": "0x042535545980d98ae7d93cd77777208af2461995a0a202c5e14cb1ae04b83375",
+    "wbtc": "0x030ea29e050a21471d5d79433055184b660f70add8e13a4dd77cef247a65f21b",
+    "ekuboRouter": "0x0491512e95abe4ab2ffc42e4941c1cba91693d554737901d95625aa7636d6941",
+    "shieldedPool": "0x05cfde7ac8b3db24e843f373585ee3b164945f5db19095803cbe77db92fda2b2"
+  },
+  "deployer": "0x0501262076fe5cf1748147b92761d2ef2d3a804c929718cfe02bdcda7071b1e5",
+  "classHashes": {
+    "MockERC20": "0x02cb5be528fbfa2fd5e3cf2bf0145469668aae32877889d6c4615e35a610080c",
+    "MockEkuboRouter": "0x06819c2aa802c27fb4074f6138013a6a9e09e68570baeb10fbd71e3344858056",
+    "ShieldedPool": "0x0320d0b2749f20424f3cce73c1b4a4dcd6c082bce57030c30127dc50bc3ff35a"
+  }
+}

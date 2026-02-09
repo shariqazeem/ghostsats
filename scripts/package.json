@@ -1,0 +1,17 @@
+{
+  "name": "ghost-sats-scripts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "deploy": "npx ts-node --esm deploy.ts"
+  },
+  "dependencies": {
+    "starknet": "^6.24.1",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}

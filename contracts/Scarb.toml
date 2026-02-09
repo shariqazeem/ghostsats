@@ -1,0 +1,18 @@
+[package]
+name = "ghost_sats"
+version = "0.1.0"
+edition = "2024_07"
+
+[dependencies]
+starknet = "2.15.0"
+openzeppelin_interfaces = "2.1.0"
+
+[dev-dependencies]
+snforge_std = "0.56.0"
+
+[tool.scarb]
+allow-prebuilt-plugins = ["snforge_std"]
+
+[[target.starknet-contract]]
+sierra = true
+casm = true
