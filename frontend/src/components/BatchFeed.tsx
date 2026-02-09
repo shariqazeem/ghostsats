@@ -15,7 +15,7 @@ export default function BatchFeed() {
     args: [],
     enabled: !!poolAddress,
     refetchInterval: 10_000,
-  } as Parameters<typeof useReadContract>[0]);
+  } as unknown as Parameters<typeof useReadContract>[0]);
 
   const { data: batchCount } = useReadContract({
     address: poolAddress || undefined,
@@ -24,7 +24,7 @@ export default function BatchFeed() {
     args: [],
     enabled: !!poolAddress,
     refetchInterval: 10_000,
-  } as Parameters<typeof useReadContract>[0]);
+  } as unknown as Parameters<typeof useReadContract>[0]);
 
   const volume = pendingUsdc ? Number(pendingUsdc) : 0;
   const batches = batchCount ? Number(batchCount) : 0;
