@@ -81,7 +81,7 @@ export default function WalletBar() {
   const bothConnected = !!starknetAddress && !!bitcoinAddress;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 px-6 py-5">
+    <header className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 py-4 sm:py-5">
       <div className="max-w-3xl mx-auto flex items-center justify-between">
         {/* Wordmark */}
         <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
@@ -92,37 +92,37 @@ export default function WalletBar() {
         <div ref={ref} className="relative">
           <motion.button
             onClick={() => setOpen(!open)}
-            className="flex items-center gap-0 rounded-full bg-white shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] transition-shadow cursor-pointer overflow-hidden border border-[var(--border-subtle)]"
+            className="flex items-center gap-0 rounded-full bg-[var(--bg-secondary)] shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] transition-shadow cursor-pointer overflow-hidden border border-[var(--border-subtle)]"
             whileTap={{ scale: 0.97 }}
             transition={spring}
           >
             {/* Starknet side */}
-            <div className="flex items-center gap-2 px-4 py-2.5 border-r border-[var(--border-subtle)]">
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5 border-r border-[var(--border-subtle)]">
               <Shield size={13} strokeWidth={1.5} className="text-[var(--text-secondary)]" />
               {starknetAddress ? (
                 <>
-                  <span className="text-[13px] font-medium text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]">
+                  <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]">
                     {truncateAddress(starknetAddress)}
                   </span>
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
                 </>
               ) : (
-                <span className="text-[13px] font-medium text-[var(--text-tertiary)]">Starknet</span>
+                <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-tertiary)]">Starknet</span>
               )}
             </div>
 
             {/* Bitcoin side */}
-            <div className="flex items-center gap-2 px-4 py-2.5">
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5">
               <Bitcoin size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
               {bitcoinAddress ? (
                 <>
-                  <span className="text-[13px] font-medium text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]">
+                  <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]">
                     {truncateAddress(bitcoinAddress)}
                   </span>
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
                 </>
               ) : (
-                <span className="text-[13px] font-medium text-[var(--text-tertiary)]">Bitcoin</span>
+                <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-tertiary)]">Bitcoin</span>
               )}
             </div>
           </motion.button>
@@ -142,7 +142,7 @@ export default function WalletBar() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 6, scale: 0.97 }}
                 transition={spring}
-                className="absolute right-0 mt-3 w-80 glass-card p-5 z-50"
+                className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-80 glass-card p-5 z-50"
               >
                 <div className="flex items-center justify-between mb-5">
                   <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">

@@ -2,7 +2,7 @@
 
 **Bitcoin's Privacy Layer on Starknet** — Gasless private USDC-to-WBTC execution with Pedersen commitments, Merkle proofs, relayer-powered withdrawals, and timing-attack protection.
 
-Built for the [Starknet Hackathon: Build Privacy Solutions by Scaling Bitcoin](https://dorahacks.io/).
+**[Live Demo](https://ghostsats.vercel.app)** | Built for the [Re{define} Starknet Hackathon](https://dorahacks.io/)
 
 ## How It Works
 
@@ -35,55 +35,70 @@ Built for the [Starknet Hackathon: Build Privacy Solutions by Scaling Bitcoin](h
 
 All deposits of the same tier are cryptographically indistinguishable. An observer sees "someone deposited 1,000 USDC" but cannot determine which commitment belongs to which user. This is the same approach used by Tornado Cash — the gold standard for on-chain privacy.
 
+## Features
+
+- **Dark-mode glass UI** — Full dark theme with glassmorphism cards, backdrop blur, and orange accent
+- **Landing page** — Professional hero, how-it-works flow, privacy guarantees grid, tech stack
+- **Anonymity set visualization** — Animated horizontal bars showing privacy strength per denomination tier (color-coded: red → amber → green)
+- **Privacy score** — SVG circular progress ring (0-100) computed from anonymity set, batches, BTC binding, and protocol usage
+- **Bitcoin attestation** — Sign Merkle root with BTC wallet (via Xverse) to cryptographically prove pool state — no tBTC required
+- **Compliance portal** — Register view keys, export cryptographic proofs (JSON), voluntary regulatory compliance without compromising others
+- **Mobile responsive** — Tested at 375px (iPhone SE) through desktop
+- **Skeleton loading** — Shimmer placeholders while on-chain data loads
+- **OG image** — Edge-rendered social preview card via Next.js ImageResponse
+
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                      FRONTEND                            │
-│  Next.js 16 + React 19 + Starknet.js + sats-connect     │
-│                                                          │
-│  ┌──────────┐  ┌──────────┐  ┌─────────────────────┐    │
-│  │ ShieldForm│  │UnveilForm│  │    Dashboard        │    │
-│  │ (deposit) │  │(withdraw)│  │ (on-chain stats)    │    │
-│  └─────┬─────┘  └─────┬────┘  └─────────────────────┘    │
-│        │              │                                   │
-│  ┌─────▼──────────────▼────────────────────────────┐     │
-│  │           Privacy Utils (client-side)            │     │
-│  │  - Pedersen commitment generation                │     │
-│  │  - Merkle proof construction                     │     │
-│  │  - Nullifier computation                         │     │
-│  │  - AES-GCM encrypted note storage                │     │
-│  └──────────────────────────────────────────────────┘     │
-└─────────────────────┬───────────────────────────────────┘
-                      │ Starknet transactions
-┌─────────────────────▼───────────────────────────────────┐
-│                  SMART CONTRACTS (Cairo)                  │
-│                                                          │
-│  ShieldedPool.cairo                                      │
-│  ├── deposit(commitment, denomination, btc_identity_hash)│
-│  │   └── Validates denomination, stores commitment,      │
-│  │       inserts into Merkle tree, transfers USDC        │
-│  ├── execute_batch(min_wbtc_out, routes)                 │
-│  │   └── Swaps pooled USDC → WBTC via Avnu aggregator   │
-│  ├── withdraw(denom, secret, blinder, nullifier,         │
-│  │           merkle_path, path_indices, recipient)       │
-│  │   └── Verifies commitment, Merkle proof, nullifier;   │
-│  │       transfers pro-rata WBTC to recipient            │
-│  └── register_view_key(commitment, view_key_hash)        │
-│      └── Optional compliance: prove tx history           │
-│                                                          │
-│  Merkle Tree: 20-level Pedersen hash tree (1M+ leaves)   │
-│  Nullifier Set: pedersen(secret, 1) — prevents re-spend  │
-│  Denominations: 100 / 1,000 / 10,000 USDC               │
-└─────────────────────┬───────────────────────────────────┘
-                      │
-┌─────────────────────▼───────────────────────────────────┐
-│                    KEEPER (automation)                    │
-│  - Monitors pending USDC threshold                       │
-│  - Queries Avnu API for optimal routes                   │
-│  - Executes batch with slippage protection               │
-│  - Runs on 5-minute loop or manual trigger               │
-└─────────────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────────────┐
+│                      FRONTEND                             │
+│  Next.js 16 + React 19 + Starknet.js + sats-connect      │
+│                                                           │
+│  /                         /app                           │
+│  ┌────────────────┐       ┌──────────────────────────┐    │
+│  │  Landing Page   │       │  WalletBar (dual wallet) │    │
+│  │  Hero + CTA     │──────▶│  Dashboard (live stats)  │    │
+│  └────────────────┘       │  TabPanel: Shield|Unveil| │    │
+│                            │    Comply                 │    │
+│                            └──────────┬───────────────┘    │
+│  ┌────────────────────────────────────▼──────────────┐    │
+│  │           Privacy Utils (client-side)              │    │
+│  │  - Pedersen commitment generation                  │    │
+│  │  - Merkle proof construction + leaf validation     │    │
+│  │  - Nullifier computation                           │    │
+│  │  - AES-GCM encrypted note storage                  │    │
+│  │  - BTC attestation (signMessage via sats-connect)  │    │
+│  └───────────────────────────────────────────────────┘    │
+└───────────────────────┬──────────────────────────────────┘
+                        │ Starknet transactions
+┌───────────────────────▼──────────────────────────────────┐
+│                  SMART CONTRACTS (Cairo)                   │
+│                                                           │
+│  ShieldedPool.cairo                                       │
+│  ├── deposit(commitment, denomination, btc_identity_hash) │
+│  │   └── Validates denomination, stores commitment,       │
+│  │       inserts into Merkle tree, transfers USDC         │
+│  ├── execute_batch(min_wbtc_out, routes)                  │
+│  │   └── Swaps pooled USDC → WBTC via Avnu aggregator    │
+│  ├── withdraw(denom, secret, blinder, nullifier,          │
+│  │           merkle_path, path_indices, recipient)        │
+│  │   └── Verifies commitment, Merkle proof, nullifier;    │
+│  │       transfers pro-rata WBTC to recipient             │
+│  └── register_view_key(commitment, view_key_hash)         │
+│      └── Optional compliance: prove tx history            │
+│                                                           │
+│  Merkle Tree: 20-level Pedersen hash tree (1M+ leaves)    │
+│  Nullifier Set: pedersen(secret, 1) — prevents re-spend   │
+│  Denominations: 100 / 1,000 / 10,000 USDC                │
+└───────────────────────┬──────────────────────────────────┘
+                        │
+┌───────────────────────▼──────────────────────────────────┐
+│                    KEEPER (automation)                     │
+│  - Monitors pending USDC threshold                        │
+│  - Queries Avnu API for optimal routes                    │
+│  - Executes batch with slippage protection                │
+│  - Runs on 5-minute loop or manual trigger                │
+└──────────────────────────────────────────────────────────┘
 ```
 
 ## Tech Stack
@@ -92,10 +107,11 @@ All deposits of the same tier are cryptographically indistinguishable. An observ
 |-------|-----------|
 | Smart Contracts | Cairo 2.15.0 + OpenZeppelin Interfaces |
 | DEX Integration | Avnu Aggregator v2 (real on-chain swaps) |
-| Frontend | Next.js 16, React 19, Tailwind CSS 4 |
-| Wallet | Starknet (Argent/Braavos) + Bitcoin (Xverse) |
+| Frontend | Next.js 16, React 19, Tailwind CSS 4, Framer Motion |
+| Wallet | Starknet (Argent/Braavos) + Bitcoin (Xverse via sats-connect) |
 | Cryptography | Pedersen hashing (native Starknet), AES-GCM |
 | Testing | snforge 0.56.0 (29 passing integration tests) |
+| Deployment | Vercel (frontend), Starknet Sepolia (contracts) |
 | Network | Starknet Sepolia testnet |
 
 ## Privacy Guarantees
@@ -111,6 +127,7 @@ All deposits of the same tier are cryptographically indistinguishable. An observ
 | **Batch anonymity** | Individual trade intent hidden in aggregate | Single batch swap for all deposits |
 | **Bitcoin identity binding** | Deposit cryptographically signed by BTC wallet | BTC wallet signs commitment; Pedersen hash of BTC address stored on-chain |
 | **Cross-chain withdrawal intent** | Bridge-ready Bitcoin withdrawal | `BitcoinWithdrawalIntent` event with hashed BTC address |
+| **Bitcoin attestation** | Merkle root signed by BTC wallet — cryptographic proof of pool state | `signMessage` via Xverse/sats-connect |
 | **Gasless withdrawals** | Withdrawer never touches their own wallet for gas | Relayer pattern with on-chain fee cap (5%) |
 | **Timing-attack resistance** | Deposit-and-immediately-withdraw pattern blocked | 60-second minimum withdrawal delay |
 | **Anonymity set visibility** | Users can see privacy strength before depositing | On-chain per-denomination deposit counter |
@@ -215,16 +232,17 @@ Most privacy tools stop at "deposit and withdraw." GhostSats goes further:
 
 1. **Gasless Private Withdrawals** — Relayer pattern means the withdrawer never interacts with their own wallet for gas. The gas payment itself is a deanonymization vector that GhostSats eliminates.
 2. **Timing-Attack Protection** — A minimum 60-second delay between batch execution and withdrawal prevents the trivial "deposit → immediate withdraw" attack that reduces your anonymity set to 1.
-3. **On-Chain Anonymity Set Visibility** — Users can see the privacy strength of each denomination tier before depositing. This creates a positive feedback loop: more deposits → stronger privacy → more deposits.
+3. **On-Chain Anonymity Set Visibility** — Animated visualization of privacy strength per denomination tier with color-coded bars and a protocol-wide privacy score (0-100). This creates a positive feedback loop: more deposits → stronger privacy → more deposits.
 4. **Bitcoin-Native DeFi with Cryptographic Identity Binding** — Not just another ERC-20 mixer. GhostSats enables private USDC→WBTC acquisition through batch execution. Bitcoin wallet signatures are cryptographically bound to deposit commitments on-chain — proving a BTC holder authorized each shielded deposit. Cross-chain withdrawal intents signal bridge-ready Bitcoin destination addresses.
-5. **Compliance Escape Hatch** — Optional view key registration allows users to prove their transaction history to regulators without compromising the privacy of other participants.
+5. **Bitcoin Attestation** — Sign the Merkle root with your BTC wallet to create a cryptographic attestation that the privacy pool state existed at a point in time — a deep Bitcoin integration that goes beyond simple token wrapping.
+6. **Compliance Escape Hatch** — Full compliance portal with view key registration and exportable cryptographic proofs (JSON). Users can voluntarily prove their transaction history to regulators without compromising other participants' privacy.
 
 ## Hackathon Tracks
 
 GhostSats targets both:
 
-- **Privacy Track**: Pedersen commitments, Merkle tree proofs, nullifier-based double-spend prevention, fixed denomination anonymity sets, relayer-powered gasless withdrawals, timing-attack protection, on-chain anonymity set metrics, encrypted note storage, compliance escape hatch
-- **Bitcoin Track**: BTC-native DeFi — private USDC→WBTC swaps via Avnu, dual wallet (Starknet + Bitcoin/Xverse), keeper-automated batch execution
+- **Privacy Track**: Pedersen commitments, Merkle tree proofs, nullifier-based double-spend prevention, fixed denomination anonymity sets, relayer-powered gasless withdrawals, timing-attack protection, on-chain anonymity set metrics, encrypted note storage, compliance portal with view key registration + proof export
+- **Bitcoin Track**: BTC-native DeFi — private USDC→WBTC swaps via Avnu, dual wallet (Starknet + Bitcoin/Xverse), BTC identity binding (wallet signs commitment), Bitcoin attestation (sign Merkle root), keeper-automated batch execution
 
 ## Contract Addresses (Sepolia)
 

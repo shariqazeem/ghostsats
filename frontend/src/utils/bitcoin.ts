@@ -49,3 +49,59 @@ export function computeBtcIdentityHash(btcAddress: string): string {
   const step1 = hash.computePedersenHash("0x0", chunk1);
   return hash.computePedersenHash(step1, chunk2);
 }
+
+/**
+ * Anchor the Starknet Merkle root via Bitcoin wallet signature.
+ * The BTC wallet signs `GhostSats:ANCHOR:<merkleRoot>:<timestamp>`, creating
+ * a verifiable cryptographic attestation that the privacy pool state existed
+ * at this moment — signed by a Bitcoin identity.
+ *
+ * Returns the BTC signature string.
+ */
+export async function anchorMerkleRoot(
+  btcAddress: string,
+  merkleRoot: string,
+): Promise<string> {
+  const { signMessage, BitcoinNetworkType } = await import("sats-connect");
+
+  const timestamp = Math.floor(Date.now() / 1000);
+  const message = `GhostSats:ANCHOR:${merkleRoot}:${timestamp}`;
+
+  return new Promise<string>((resolve, reject) => {
+    signMessage({
+      payload: {
+        address: btcAddress,
+        message,
+        network: { type: BitcoinNetworkType.Testnet4 },
+      },
+      onFinish: (signature) => {
+        resolve(signature);
+      },
+      onCancel: () => {
+        reject(new Error("User cancelled Bitcoin anchor signature"));
+      },
+    });
+  });
+}
+
+/**
+ * Get stored anchor history from localStorage.
+ */
+export function getAnchorHistory(): Array<{ merkleRoot: string; signature: string; timestamp: number }> {
+  try {
+    const raw = localStorage.getItem("ghostsats_anchors");
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Save an anchor event to localStorage.
+ */
+export function saveAnchor(merkleRoot: string, signature: string): void {
+  const history = getAnchorHistory();
+  history.unshift({ merkleRoot, signature, timestamp: Date.now() });
+  // Keep last 50
+  localStorage.setItem("ghostsats_anchors", JSON.stringify(history.slice(0, 50)));
+}
