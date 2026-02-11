@@ -74,17 +74,27 @@ export default function LandingPage() {
           <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
             Ghost<span className="text-[var(--accent-orange)]">Sats</span>
           </span>
-          <Link href="/app">
-            <motion.button
-              className="px-5 py-2.5 bg-[var(--accent-orange)] text-white rounded-full text-[13px] font-semibold tracking-tight cursor-pointer flex items-center gap-2"
-              whileHover={{ y: -1, boxShadow: "0 0 30px -5px rgba(255, 90, 0, 0.3)" }}
-              whileTap={{ scale: 0.97 }}
-              transition={spring}
+          <div className="flex items-center gap-4">
+            <a
+              href="https://ghostsats-docs.vercel.app"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-[13px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)] transition-colors"
             >
-              Launch App
-              <ArrowRight size={14} strokeWidth={2} />
-            </motion.button>
-          </Link>
+              Docs
+            </a>
+            <Link href="/app">
+              <motion.button
+                className="px-5 py-2.5 bg-[var(--accent-orange)] text-white rounded-full text-[13px] font-semibold tracking-tight cursor-pointer flex items-center gap-2"
+                whileHover={{ y: -1, boxShadow: "0 0 30px -5px rgba(255, 90, 0, 0.3)" }}
+                whileTap={{ scale: 0.97 }}
+                transition={spring}
+              >
+                Launch App
+                <ArrowRight size={14} strokeWidth={2} />
+              </motion.button>
+            </Link>
+          </div>
         </div>
       </nav>
 

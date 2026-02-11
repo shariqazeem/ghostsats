@@ -1,11 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
 import { useReadContract } from "@starknet-react/core";
-import { useWallet } from "@/context/WalletContext";
 import { motion } from "framer-motion";
-import { Activity, Shield, Layers, TrendingUp, Users, Clock, Bitcoin, Anchor, Fingerprint, Zap } from "lucide-react";
-import { anchorMerkleRoot, saveAnchor, getAnchorHistory } from "@/utils/bitcoin";
+import { Activity, Shield, Layers, TrendingUp, Users, Bitcoin, Fingerprint, Zap } from "lucide-react";
 import PrivacyScore from "./PrivacyScore";
 import { SkeletonLine } from "./Skeleton";
 import addresses from "@/contracts/addresses.json";
@@ -17,17 +14,7 @@ function truncateHash(h: string, chars = 6): string {
 }
 
 export default function Dashboard() {
-  const { bitcoinAddress } = useWallet();
   const poolAddress = addresses.contracts.shieldedPool as `0x${string}` | "";
-
-  const [anchoring, setAnchoring] = useState(false);
-  const [anchorTxid, setAnchorTxid] = useState<string | null>(null);
-  const [anchorError, setAnchorError] = useState<string | null>(null);
-  const [anchorHistory, setAnchorHistory] = useState<ReturnType<typeof getAnchorHistory>>([]);
-
-  useEffect(() => {
-    setAnchorHistory(getAnchorHistory());
-  }, [anchorTxid]);
 
   const { data: pendingUsdc } = useReadContract({
     address: poolAddress || undefined,
@@ -378,106 +365,6 @@ export default function Dashboard() {
         </p>
       </div>
 
-      {/* Privacy Features */}
-      <div className="glass-card p-6">
-        <div className="flex items-center gap-1.5 mb-4">
-          <Shield size={12} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
-          <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
-            Privacy Stack
-          </span>
-        </div>
-        <div className="grid grid-cols-2 gap-2.5">
-          {[
-            { icon: Fingerprint, label: "ZK Proofs", value: "Noir + Garaga", color: "text-emerald-400" },
-            { icon: Zap, label: "Gasless", value: "Relayer (2%)", color: "text-[var(--accent-orange)]" },
-            { icon: Clock, label: "Timing Guard", value: "60s cooldown", color: "text-[var(--text-secondary)]" },
-            { icon: Layers, label: "Merkle Tree", value: "20-level", color: "text-[var(--text-secondary)]" },
-            { icon: Users, label: "Anon Sets", value: "3 tiers", color: "text-[var(--text-secondary)]" },
-            { icon: Bitcoin, label: "BTC Binding", value: `${btcLinked} linked`, color: "text-[var(--accent-orange)]" },
-          ].map(({ icon: Icon, label, value, color }) => (
-            <div key={label} className="flex items-center gap-2.5 rounded-lg bg-[var(--bg-secondary)] px-3 py-2.5">
-              <Icon size={12} strokeWidth={1.5} className={color} />
-              <div className="flex-1 min-w-0">
-                <div className="text-[11px] font-medium text-[var(--text-secondary)]">{label}</div>
-                <div className={`text-[10px] font-[family-name:var(--font-geist-mono)] font-tabular ${color}`}>{value}</div>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Bitcoin Attestation */}
-      <div className="glass-card p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-1.5">
-            <Anchor size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
-              Bitcoin Attestation
-            </span>
-          </div>
-          {bitcoinAddress && root !== "0x0" && (
-            <motion.button
-              onClick={async () => {
-                setAnchoring(true);
-                setAnchorError(null);
-                setAnchorTxid(null);
-                try {
-                  const sig = await anchorMerkleRoot(bitcoinAddress, root);
-                  setAnchorTxid(sig);
-                  saveAnchor(root, sig);
-                } catch (err) {
-                  setAnchorError(err instanceof Error ? err.message : "Attestation failed");
-                }
-                setAnchoring(false);
-              }}
-              disabled={anchoring}
-              className="text-[11px] font-medium text-[var(--accent-orange)] hover:text-white bg-orange-900/20 hover:bg-[var(--accent-orange)] px-3 py-1.5 rounded-lg transition-all cursor-pointer disabled:opacity-50"
-              whileTap={{ scale: 0.95 }}
-            >
-              {anchoring ? "Signing..." : "Sign Attestation"}
-            </motion.button>
-          )}
-        </div>
-
-        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
-          Your Bitcoin wallet signs the current Merkle root, creating a verifiable cryptographic attestation that the privacy pool state existed at this moment.
-        </p>
-
-        {anchorTxid && (
-          <div className="rounded-xl p-3 bg-emerald-900/20 border border-emerald-800/30 mb-3">
-            <div className="flex items-center gap-1.5 text-[11px] text-emerald-400 mb-1">
-              <span>Merkle root attested by Bitcoin wallet</span>
-            </div>
-            <div className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-400/70 break-all">
-              sig: {anchorTxid.slice(0, 32)}...
-            </div>
-          </div>
-        )}
-
-        {anchorError && (
-          <div className="rounded-xl p-3 bg-red-950/30 border border-red-900/30 mb-3">
-            <span className="text-[11px] text-red-400">{anchorError}</span>
-          </div>
-        )}
-
-        {anchorHistory.length === 0 ? (
-            <p className="text-[10px] text-[var(--text-quaternary)]">
-              {bitcoinAddress ? "No attestations yet. Sign to anchor the Merkle root." : "Connect Bitcoin wallet to sign Merkle root attestations."}
-            </p>
-        ) : (
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] text-[var(--text-tertiary)]">Last attested</span>
-                <span className="text-[10px] font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)]">
-                  {new Date(anchorHistory[0].timestamp).toLocaleDateString()}
-                </span>
-              </div>
-              <span className="text-[10px] font-[family-name:var(--font-geist-mono)] text-[var(--accent-orange)]">
-                {anchorHistory[0].signature.slice(0, 12)}...
-              </span>
-            </div>
-        )}
-      </div>
     </div>
   );
 }
