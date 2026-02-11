@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAccount, useSendTransaction } from "@starknet-react/core";
-import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock, Zap } from "lucide-react";
+import { Loader, CheckCircle, AlertTriangle, Lock, Unlock, ExternalLink, Bitcoin, Clock, Zap, ShieldCheck, Fingerprint } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { computeBtcIdentityHash } from "@/utils/bitcoin";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,11 +16,19 @@ import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { CallData, RpcProvider, Contract, type Abi, num } from "starknet";
 
-type ClaimPhase = "idle" | "building_proof" | "generating_zk" | "withdrawing" | "success" | "error";
+type ClaimPhase = "idle" | "building_proof" | "generating_zk" | "zk_witness" | "zk_proving" | "zk_calldata" | "withdrawing" | "success" | "error";
+
+interface ProofDetails {
+  calldataElements: number;
+  zkCommitment: string;
+  zkNullifier: string;
+  gasless: boolean;
+}
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "http://localhost:3001";
+const GARAGA_VERIFIER = "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07";
 
 function truncateHash(h: string, chars = 4): string {
   if (h.length <= chars * 2 + 2) return h;
@@ -185,6 +193,8 @@ export default function UnveilForm() {
   const [tokenAdded, setTokenAdded] = useState(false);
   const [useRelayer, setUseRelayer] = useState(false);
   const [relayerFee, setRelayerFee] = useState<number | null>(null);
+  const [proofDetails, setProofDetails] = useState<ProofDetails | null>(null);
+  const [zkTimer, setZkTimer] = useState<number>(0);
 
   const poolAddress = addresses.contracts.shieldedPool;
 
@@ -226,6 +236,8 @@ export default function UnveilForm() {
     setClaimError(null);
     setClaimTxHash(null);
     setClaimedWbtcAmount(null);
+    setProofDetails(null);
+    setZkTimer(0);
 
     try {
       setClaimPhase("building_proof");
@@ -268,12 +280,26 @@ export default function UnveilForm() {
       const hasZK = !!note.zkCommitment;
 
       if (hasZK && useRelayer) {
-        // Gasless withdrawal via relayer
-        setClaimPhase("generating_zk");
+        // Gasless withdrawal via relayer — show ZK pipeline stages
+        const zkStart = Date.now();
+        const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
+        setClaimPhase("zk_witness");
+        // Simulate stage progression (prover service runs all 3 stages sequentially)
+        const stageTimer1 = setTimeout(() => setClaimPhase("zk_proving"), 3000);
+        const stageTimer2 = setTimeout(() => setClaimPhase("zk_calldata"), 12000);
         const { proof, zkNullifier } = await generateWithdrawalProof({
           secret: BigInt(note.secret),
           blinder: BigInt(note.blinder),
           denomination: BigInt(denomination),
+        });
+        clearInterval(timer);
+        clearTimeout(stageTimer1);
+        clearTimeout(stageTimer2);
+        setProofDetails({
+          calldataElements: proof.length,
+          zkCommitment: note.zkCommitment!,
+          zkNullifier,
+          gasless: true,
         });
 
         setClaimPhase("withdrawing");
@@ -296,12 +322,25 @@ export default function UnveilForm() {
         setClaimTxHash(relayData.txHash);
         setClaimedWbtcAmount(note.wbtcShare ?? null);
       } else if (hasZK) {
-        // ZK-private withdrawal (user pays gas)
-        setClaimPhase("generating_zk");
+        // ZK-private withdrawal (user pays gas) — show ZK pipeline stages
+        const zkStart = Date.now();
+        const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
+        setClaimPhase("zk_witness");
+        const stageTimer1 = setTimeout(() => setClaimPhase("zk_proving"), 3000);
+        const stageTimer2 = setTimeout(() => setClaimPhase("zk_calldata"), 12000);
         const { proof, zkNullifier } = await generateWithdrawalProof({
           secret: BigInt(note.secret),
           blinder: BigInt(note.blinder),
           denomination: BigInt(denomination),
+        });
+        clearInterval(timer);
+        clearTimeout(stageTimer1);
+        clearTimeout(stageTimer2);
+        setProofDetails({
+          calldataElements: proof.length,
+          zkCommitment: note.zkCommitment!,
+          zkNullifier,
+          gasless: false,
         });
 
         setClaimPhase("withdrawing");
@@ -394,25 +433,87 @@ export default function UnveilForm() {
         </button>
       </div>
 
-      {/* Status Banner */}
+      {/* Status Banner — ZK Pipeline Visualization */}
       <AnimatePresence>
         {claimPhase !== "idle" && claimPhase !== "success" && claimPhase !== "error" && (
           <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="rounded-xl p-4 bg-[var(--bg-secondary)] text-sm text-[var(--text-secondary)]"
+            className="rounded-xl p-4 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] space-y-3"
           >
-            <div className="flex items-center gap-2">
-              <Loader size={14} className="animate-spin" strokeWidth={1.5} />
-              <span>
-                {claimPhase === "building_proof"
-                  ? "Reconstructing Merkle tree & building proof..."
-                  : claimPhase === "generating_zk"
-                    ? "Generating zero-knowledge proof (10-30s)..."
-                    : "Submitting withdrawal with zero-knowledge proof..."}
-              </span>
-            </div>
+            {claimPhase === "building_proof" && (
+              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <Loader size={14} className="animate-spin" strokeWidth={1.5} />
+                <span>Reconstructing Merkle tree & building proof...</span>
+              </div>
+            )}
+            {(claimPhase === "zk_witness" || claimPhase === "zk_proving" || claimPhase === "zk_calldata" || claimPhase === "generating_zk") && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
+                    <Fingerprint size={14} strokeWidth={1.5} className="text-emerald-400" />
+                    <span className="font-medium">Generating Zero-Knowledge Proof</span>
+                  </div>
+                  <span className="text-[11px] font-[family-name:var(--font-geist-mono)] text-[var(--text-tertiary)] font-tabular">
+                    {zkTimer}s
+                  </span>
+                </div>
+                {/* 3-step pipeline */}
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { label: "Witness", sub: "nargo", phase: "zk_witness" as const },
+                    { label: "Proof", sub: "bb prove", phase: "zk_proving" as const },
+                    { label: "Calldata", sub: "garaga", phase: "zk_calldata" as const },
+                  ].map((step) => {
+                    const phases: ClaimPhase[] = ["zk_witness", "zk_proving", "zk_calldata"];
+                    const currentIdx = phases.indexOf(claimPhase as typeof phases[number]);
+                    const stepIdx = phases.indexOf(step.phase);
+                    const isDone = currentIdx > stepIdx;
+                    const isActive = claimPhase === step.phase;
+                    return (
+                      <div
+                        key={step.label}
+                        className={`rounded-lg p-2 text-center border transition-all ${
+                          isDone
+                            ? "bg-emerald-950/30 border-emerald-800/30"
+                            : isActive
+                              ? "bg-orange-950/20 border-orange-800/30"
+                              : "bg-[var(--bg-tertiary)] border-[var(--border-faint)]"
+                        }`}
+                      >
+                        <div className="flex items-center justify-center gap-1 mb-0.5">
+                          {isDone ? (
+                            <CheckCircle size={10} strokeWidth={2} className="text-emerald-400" />
+                          ) : isActive ? (
+                            <Loader size={10} className="animate-spin text-[var(--accent-orange)]" strokeWidth={2} />
+                          ) : null}
+                          <span className={`text-[11px] font-semibold ${
+                            isDone ? "text-emerald-400" : isActive ? "text-[var(--accent-orange)]" : "text-[var(--text-quaternary)]"
+                          }`}>
+                            {step.label}
+                          </span>
+                        </div>
+                        <div className={`text-[9px] font-[family-name:var(--font-geist-mono)] ${
+                          isDone ? "text-emerald-400/50" : isActive ? "text-[var(--text-tertiary)]" : "text-[var(--text-quaternary)]"
+                        }`}>
+                          {step.sub}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] text-[var(--text-tertiary)] text-center">
+                  Secrets stay local — only the proof goes on-chain
+                </p>
+              </div>
+            )}
+            {claimPhase === "withdrawing" && (
+              <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
+                <Loader size={14} className="animate-spin" strokeWidth={1.5} />
+                <span>Submitting withdrawal with ZK proof ({proofDetails?.calldataElements ?? "~2835"} calldata elements)...</span>
+              </div>
+            )}
           </motion.div>
         )}
       </AnimatePresence>
@@ -422,20 +523,15 @@ export default function UnveilForm() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="rounded-xl p-4 bg-emerald-900/20 text-sm text-emerald-400 space-y-2 border border-emerald-800/30"
+          className="rounded-xl p-4 bg-emerald-900/20 text-sm text-emerald-400 space-y-3 border border-emerald-800/30"
         >
           <div className="flex items-center gap-2">
             <CheckCircle size={14} strokeWidth={1.5} />
-            <span>WBTC withdrawn privately{btcWithdrawAddress ? " + Bitcoin intent emitted" : ""}</span>
+            <span className="font-medium">WBTC withdrawn privately{btcWithdrawAddress ? " + Bitcoin intent emitted" : ""}</span>
           </div>
           {claimedWbtcAmount && (
             <div className="text-xs text-emerald-400">
               Received: <span className="font-[family-name:var(--font-geist-mono)] font-semibold">{(Number(claimedWbtcAmount) / 1e8).toFixed(8)}</span> BTC
-            </div>
-          )}
-          {btcWithdrawAddress && (
-            <div className="text-xs text-emerald-400">
-              Cross-chain intent: <span className="font-[family-name:var(--font-geist-mono)]">{btcWithdrawAddress.slice(0, 12)}...</span>
             </div>
           )}
           {claimTxHash && (
@@ -449,6 +545,30 @@ export default function UnveilForm() {
               <ExternalLink size={10} strokeWidth={1.5} />
             </a>
           )}
+
+          {/* ZK Proof Details — the "proof of the proof" */}
+          {proofDetails && (
+            <div className="rounded-lg bg-emerald-900/10 p-3 space-y-2 border border-emerald-800/20">
+              <div className="flex items-center gap-1.5">
+                <ShieldCheck size={11} strokeWidth={2} className="text-emerald-400" />
+                <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">ZK Proof Verified On-Chain</span>
+              </div>
+              <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+                <div className="text-[10px] text-emerald-400/60">Proof size</div>
+                <div className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-400">{proofDetails.calldataElements} felt252 values</div>
+                <div className="text-[10px] text-emerald-400/60">Verifier</div>
+                <div className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-400">Garaga UltraKeccakZKHonk</div>
+                <div className="text-[10px] text-emerald-400/60">Method</div>
+                <div className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-400">{proofDetails.gasless ? "Gasless relayer" : "Direct withdrawal"}</div>
+              </div>
+              <div className="pt-1.5 border-t border-emerald-800/20">
+                <div className="text-[9px] text-emerald-400/70 font-medium">
+                  Your secret and blinder did NOT appear in this transaction. Only the ZK proof was submitted.
+                </div>
+              </div>
+            </div>
+          )}
+
           <div className="rounded-lg bg-emerald-900/10 p-2.5 space-y-1.5 border border-emerald-800/20">
             <div className="text-[10px] text-emerald-400 font-medium">Add WBTC token to your wallet:</div>
             <div className="flex items-center gap-2">
