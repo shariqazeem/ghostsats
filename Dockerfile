@@ -29,9 +29,9 @@ RUN pip install --no-cache-dir garaga==1.0.1
 
 WORKDIR /app
 
-# Copy and install Node.js deps
+# Copy and install Node.js deps (include devDeps for tsx runtime)
 COPY scripts/package.json ./
-RUN npm install --production
+RUN npm install
 
 # Copy relayer source
 COPY scripts/relayer.ts scripts/tsconfig.json ./
@@ -47,4 +47,4 @@ ENV NODE_ENV=production
 
 EXPOSE 3001
 
-CMD ["npx", "ts-node", "--esm", "relayer.ts"]
+CMD ["npx", "tsx", "relayer.ts"]
