@@ -112,6 +112,7 @@ pub trait IShieldedPool<TContractState> {
     fn get_current_batch_id(self: @TContractState) -> u64;
     fn get_batch_result(self: @TContractState, batch_id: u64) -> BatchResult;
     fn get_merkle_root(self: @TContractState) -> felt252;
+    fn is_known_root(self: @TContractState, root: felt252) -> bool;
     fn get_leaf_count(self: @TContractState) -> u32;
     fn get_leaf(self: @TContractState, index: u32) -> felt252;
     fn get_denomination_amount(self: @TContractState, tier: u8) -> u256;
@@ -211,6 +212,8 @@ pub mod ShieldedPool {
         merkle_nodes: Map<u32, Map<u32, felt252>>,
         leaf_count: u32,
         merkle_root: felt252,
+        /// Historical Merkle roots — prevents proofs breaking when new deposits arrive.
+        merkle_root_history: Map<felt252, bool>,
 
         // ---- Batch Accumulator ----
         pending_usdc: u256,
@@ -234,6 +237,8 @@ pub mod ShieldedPool {
 
         // ---- Compliance ----
         view_keys: Map<felt252, felt252>,
+        /// Tracks who deposited each commitment (for view key access control).
+        commitment_depositor: Map<felt252, ContractAddress>,
 
         // ---- ZK Privacy Layer ----
         /// Maps BN254 Poseidon ZK commitment → Pedersen commitment.
@@ -348,6 +353,7 @@ pub mod ShieldedPool {
 
         let empty_root = InternalImpl::compute_empty_root();
         self.merkle_root.write(empty_root);
+        self.merkle_root_history.entry(empty_root).write(true);
     }
 
     // ========================================
@@ -379,6 +385,7 @@ pub mod ShieldedPool {
 
             let new_root = InternalImpl::update_merkle_root(ref self, leaf_index, commitment);
             self.merkle_root.write(new_root);
+            self.merkle_root_history.entry(new_root).write(true);
 
             // Accumulate into batch
             self.pending_usdc.write(self.pending_usdc.read() + amount);
@@ -397,6 +404,9 @@ pub mod ShieldedPool {
                 self.btc_linked_count.write(self.btc_linked_count.read() + 1);
                 self.emit(BitcoinIdentityLinked { commitment, btc_identity_hash });
             }
+
+            // Track depositor for access control (view keys)
+            self.commitment_depositor.entry(commitment).write(get_caller_address());
 
             // Emit
             self.emit(DepositCommitted {
@@ -579,6 +589,7 @@ pub mod ShieldedPool {
 
             let new_root = InternalImpl::update_merkle_root(ref self, leaf_index, commitment);
             self.merkle_root.write(new_root);
+            self.merkle_root_history.entry(new_root).write(true);
 
             // Accumulate into batch
             self.pending_usdc.write(self.pending_usdc.read() + amount);
@@ -597,6 +608,9 @@ pub mod ShieldedPool {
                 self.btc_linked_count.write(self.btc_linked_count.read() + 1);
                 self.emit(BitcoinIdentityLinked { commitment, btc_identity_hash });
             }
+
+            // Track depositor for access control (view keys)
+            self.commitment_depositor.entry(commitment).write(get_caller_address());
 
             // Emit
             self.emit(DepositCommitted {
@@ -715,6 +729,10 @@ pub mod ShieldedPool {
             self.merkle_root.read()
         }
 
+        fn is_known_root(self: @ContractState, root: felt252) -> bool {
+            self.merkle_root_history.entry(root).read()
+        }
+
         fn get_leaf_count(self: @ContractState) -> u32 {
             self.leaf_count.read()
         }
@@ -771,6 +789,14 @@ pub mod ShieldedPool {
         fn register_view_key(ref self: ContractState, commitment: felt252, view_key_hash: felt252) {
             assert(self.commitments.entry(commitment).read(), 'Commitment not found');
             assert(view_key_hash != 0, 'Invalid view key');
+            // Only the original depositor (or owner) can register a view key
+            let caller = get_caller_address();
+            let depositor = self.commitment_depositor.entry(commitment).read();
+            let zero_addr: ContractAddress = 0.try_into().unwrap();
+            assert(
+                caller == depositor || caller == self.owner.read() || depositor == zero_addr,
+                'Not authorized',
+            );
             self.view_keys.entry(commitment).write(view_key_hash);
             self.emit(ViewKeyRegistered { commitment });
         }
@@ -822,12 +848,15 @@ pub mod ShieldedPool {
             assert(!self.nullifiers.entry(nullifier).read(), 'Note already spent');
             self.nullifiers.entry(nullifier).write(true);
 
-            // 6. Verify Merkle proof
-            let root = self.merkle_root.read();
-            let valid = Self::verify_merkle_proof(
-                commitment, root, merkle_path, path_indices,
+            // 6. Verify Merkle proof against any historical root
+            // This allows proofs generated before new deposits to remain valid.
+            let computed_root = Self::compute_merkle_root_from_proof(
+                commitment, merkle_path, path_indices,
             );
-            assert(valid, 'Invalid Merkle proof');
+            assert(
+                self.merkle_root_history.entry(computed_root).read(),
+                'Invalid Merkle proof',
+            );
 
             // 7. Get batch and verify finalized
             let batch_id = self.commitment_to_batch.entry(commitment).read();
@@ -891,10 +920,14 @@ pub mod ShieldedPool {
             assert(!self.zk_nullifiers.entry(zk_nullifier).read(), 'Note already spent');
             self.zk_nullifiers.entry(zk_nullifier).write(true);
 
-            // 6. Verify Merkle proof
-            let root = self.merkle_root.read();
-            let valid = Self::verify_merkle_proof(commitment, root, merkle_path, path_indices);
-            assert(valid, 'Invalid Merkle proof');
+            // 6. Verify Merkle proof against any historical root
+            let computed_root = Self::compute_merkle_root_from_proof(
+                commitment, merkle_path, path_indices,
+            );
+            assert(
+                self.merkle_root_history.entry(computed_root).read(),
+                'Invalid Merkle proof',
+            );
 
             // 7. Get batch and verify finalized
             let batch_id = self.commitment_to_batch.entry(commitment).read();
@@ -998,12 +1031,14 @@ pub mod ShieldedPool {
             current
         }
 
-        fn verify_merkle_proof(
+        /// Compute the Merkle root from a leaf and its proof path.
+        /// Used with historical root tracking — returns the root so caller
+        /// can check if it exists in merkle_root_history.
+        fn compute_merkle_root_from_proof(
             leaf: felt252,
-            root: felt252,
             path: Array<felt252>,
             indices: Array<u8>,
-        ) -> bool {
+        ) -> felt252 {
             assert(path.len() == indices.len(), 'Path/indices length mismatch');
 
             let mut current = leaf;
@@ -1023,7 +1058,7 @@ pub mod ShieldedPool {
                 i += 1;
             };
 
-            current == root
+            current
         }
     }
 }

@@ -16,7 +16,7 @@ import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { CallData, RpcProvider, Contract, type Abi, num } from "starknet";
 
-type ClaimPhase = "idle" | "building_proof" | "generating_zk" | "zk_witness" | "zk_proving" | "zk_calldata" | "withdrawing" | "success" | "error";
+type ClaimPhase = "idle" | "building_proof" | "generating_zk" | "withdrawing" | "success" | "error";
 
 interface ProofDetails {
   calldataElements: number;
@@ -280,21 +280,16 @@ export default function UnveilForm() {
       const hasZK = !!note.zkCommitment;
 
       if (hasZK && useRelayer) {
-        // Gasless withdrawal via relayer — show ZK pipeline stages
+        // Gasless withdrawal via relayer — ZK proof generation
         const zkStart = Date.now();
         const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
-        setClaimPhase("zk_witness");
-        // Simulate stage progression (prover service runs all 3 stages sequentially)
-        const stageTimer1 = setTimeout(() => setClaimPhase("zk_proving"), 3000);
-        const stageTimer2 = setTimeout(() => setClaimPhase("zk_calldata"), 12000);
+        setClaimPhase("generating_zk");
         const { proof, zkNullifier } = await generateWithdrawalProof({
           secret: BigInt(note.secret),
           blinder: BigInt(note.blinder),
           denomination: BigInt(denomination),
         });
         clearInterval(timer);
-        clearTimeout(stageTimer1);
-        clearTimeout(stageTimer2);
         setProofDetails({
           calldataElements: proof.length,
           zkCommitment: note.zkCommitment!,
@@ -322,20 +317,16 @@ export default function UnveilForm() {
         setClaimTxHash(relayData.txHash);
         setClaimedWbtcAmount(note.wbtcShare ?? null);
       } else if (hasZK) {
-        // ZK-private withdrawal (user pays gas) — show ZK pipeline stages
+        // ZK-private withdrawal (user pays gas) — ZK proof generation
         const zkStart = Date.now();
         const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
-        setClaimPhase("zk_witness");
-        const stageTimer1 = setTimeout(() => setClaimPhase("zk_proving"), 3000);
-        const stageTimer2 = setTimeout(() => setClaimPhase("zk_calldata"), 12000);
+        setClaimPhase("generating_zk");
         const { proof, zkNullifier } = await generateWithdrawalProof({
           secret: BigInt(note.secret),
           blinder: BigInt(note.blinder),
           denomination: BigInt(denomination),
         });
         clearInterval(timer);
-        clearTimeout(stageTimer1);
-        clearTimeout(stageTimer2);
         setProofDetails({
           calldataElements: proof.length,
           zkCommitment: note.zkCommitment!,
@@ -448,7 +439,7 @@ export default function UnveilForm() {
                 <span>Reconstructing Merkle tree & building proof...</span>
               </div>
             )}
-            {(claimPhase === "zk_witness" || claimPhase === "zk_proving" || claimPhase === "zk_calldata" || claimPhase === "generating_zk") && (
+            {claimPhase === "generating_zk" && (
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2 text-sm text-[var(--text-primary)]">
@@ -459,49 +450,28 @@ export default function UnveilForm() {
                     {zkTimer}s
                   </span>
                 </div>
-                {/* 3-step pipeline */}
+                {/* 3-step pipeline (informational — all run server-side) */}
                 <div className="grid grid-cols-3 gap-1.5">
                   {[
-                    { label: "Witness", sub: "nargo", phase: "zk_witness" as const },
-                    { label: "Proof", sub: "bb prove", phase: "zk_proving" as const },
-                    { label: "Calldata", sub: "garaga", phase: "zk_calldata" as const },
-                  ].map((step) => {
-                    const phases: ClaimPhase[] = ["zk_witness", "zk_proving", "zk_calldata"];
-                    const currentIdx = phases.indexOf(claimPhase as typeof phases[number]);
-                    const stepIdx = phases.indexOf(step.phase);
-                    const isDone = currentIdx > stepIdx;
-                    const isActive = claimPhase === step.phase;
-                    return (
-                      <div
-                        key={step.label}
-                        className={`rounded-lg p-2 text-center border transition-all ${
-                          isDone
-                            ? "bg-emerald-950/30 border-emerald-800/30"
-                            : isActive
-                              ? "bg-orange-950/20 border-orange-800/30"
-                              : "bg-[var(--bg-tertiary)] border-[var(--border-faint)]"
-                        }`}
-                      >
-                        <div className="flex items-center justify-center gap-1 mb-0.5">
-                          {isDone ? (
-                            <CheckCircle size={10} strokeWidth={2} className="text-emerald-400" />
-                          ) : isActive ? (
-                            <Loader size={10} className="animate-spin text-[var(--accent-orange)]" strokeWidth={2} />
-                          ) : null}
-                          <span className={`text-[11px] font-semibold ${
-                            isDone ? "text-emerald-400" : isActive ? "text-[var(--accent-orange)]" : "text-[var(--text-quaternary)]"
-                          }`}>
-                            {step.label}
-                          </span>
-                        </div>
-                        <div className={`text-[9px] font-[family-name:var(--font-geist-mono)] ${
-                          isDone ? "text-emerald-400/50" : isActive ? "text-[var(--text-tertiary)]" : "text-[var(--text-quaternary)]"
-                        }`}>
-                          {step.sub}
-                        </div>
+                    { label: "Witness", sub: "nargo execute" },
+                    { label: "Proof", sub: "bb prove" },
+                    { label: "Calldata", sub: "garaga" },
+                  ].map((step) => (
+                    <div
+                      key={step.label}
+                      className="rounded-lg p-2 text-center border bg-orange-950/20 border-orange-800/30"
+                    >
+                      <div className="flex items-center justify-center gap-1 mb-0.5">
+                        <Loader size={10} className="animate-spin text-[var(--accent-orange)]" strokeWidth={2} />
+                        <span className="text-[11px] font-semibold text-[var(--accent-orange)]">
+                          {step.label}
+                        </span>
                       </div>
-                    );
-                  })}
+                      <div className="text-[9px] font-[family-name:var(--font-geist-mono)] text-[var(--text-tertiary)]">
+                        {step.sub}
+                      </div>
+                    </div>
+                  ))}
                 </div>
                 <p className="text-[10px] text-[var(--text-tertiary)] text-center">
                   Secrets stay local — only the proof goes on-chain

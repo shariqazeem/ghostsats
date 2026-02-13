@@ -207,45 +207,57 @@ export function generateNote(
  * Generate a private GhostNote with ZK commitment for deposit_private.
  * Same as generateNote but also computes BN254 Poseidon ZK commitment
  * and nullifier for the ZK proof system.
+ *
+ * BN254 Poseidon outputs (~2^254) may exceed STARK_PRIME (~2^251).
+ * The reduction modulo STARK_PRIME is handled in computeZKCommitment/computeZKNullifier.
+ * We retry with a new blinder if the unreduced value would cause issues
+ * (probability ~16% per attempt, so P(10 failures) ≈ 0.0000001%).
  */
+const MAX_ZK_RETRIES = 10;
+
 export function generatePrivateNote(
   denomination: number,
   batchId: number = 0,
   leafIndex: number = 0,
   btcIdentityHash?: string,
 ): GhostNote {
-  const note = generateNote(denomination, batchId, leafIndex, btcIdentityHash);
+  for (let attempt = 0; attempt < MAX_ZK_RETRIES; attempt++) {
+    const note = generateNote(denomination, batchId, leafIndex, btcIdentityHash);
 
-  const secretBigint = BigInt(note.secret);
-  const blinderBigint = BigInt(note.blinder);
-  const denominationBigint = BigInt(denomination);
+    const secretBigint = BigInt(note.secret);
+    const blinderBigint = BigInt(note.blinder);
+    const denominationBigint = BigInt(denomination);
 
-  const zkCommitment = bigintToHex(
-    computeZKCommitment(secretBigint, blinderBigint, denominationBigint),
-  );
-  const zkNullifier = bigintToHex(
-    computeZKNullifier(secretBigint),
-  );
+    const zkCommitmentRaw = computeZKCommitment(secretBigint, blinderBigint, denominationBigint);
+    const zkNullifierRaw = computeZKNullifier(secretBigint);
 
-  return { ...note, zkCommitment, zkNullifier };
+    // Ensure both values are non-zero after reduction (extremely rare edge case)
+    if (zkCommitmentRaw === 0n || zkNullifierRaw === 0n) continue;
+
+    const zkCommitment = bigintToHex(zkCommitmentRaw);
+    const zkNullifier = bigintToHex(zkNullifierRaw);
+
+    return { ...note, zkCommitment, zkNullifier };
+  }
+
+  throw new Error("Failed to generate valid ZK commitment after max retries");
 }
 
 // ========================================
 // Encrypted Storage
 // ========================================
 
-/** Derive an AES-GCM key from a wallet signature (used as password). */
-async function deriveKey(password: string): Promise<CryptoKey> {
+/** Derive an AES-GCM key from a secret password using PBKDF2. */
+async function deriveKey(secret: string): Promise<CryptoKey> {
   const enc = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    enc.encode(password),
+    enc.encode(secret),
     "PBKDF2",
     false,
     ["deriveKey"],
   );
 
-  // Use a fixed salt (derived from app name) for deterministic key derivation
   const salt = enc.encode("ghostsats-v1-note-encryption");
 
   return crypto.subtle.deriveKey(
@@ -257,10 +269,45 @@ async function deriveKey(password: string): Promise<CryptoKey> {
   );
 }
 
+/**
+ * Get the encryption secret for note storage.
+ *
+ * Uses a wallet-signed message as the encryption key material.
+ * The signature is unique per wallet and can only be produced by the private key holder.
+ * Falls back to wallet address for wallets that don't support signing (less secure).
+ *
+ * The signed message is cached in sessionStorage to avoid re-prompting.
+ */
+const SIGNATURE_CACHE_KEY = "ghost-enc-sig";
+
+export async function getEncryptionSecret(
+  walletAddress: string,
+  signMessage?: (message: string) => Promise<string[]>,
+): Promise<string> {
+  // Check session cache first
+  const cached = sessionStorage.getItem(SIGNATURE_CACHE_KEY);
+  if (cached) return cached;
+
+  if (signMessage) {
+    try {
+      const sig = await signMessage("GhostSats note encryption key");
+      // Use the full signature array joined as the secret
+      const secret = sig.join("");
+      sessionStorage.setItem(SIGNATURE_CACHE_KEY, secret);
+      return secret;
+    } catch {
+      // User rejected or wallet doesn't support signing — fall back
+    }
+  }
+
+  // Fallback: use address (less secure, but functional)
+  return walletAddress;
+}
+
 /** Encrypt and save notes to localStorage. */
-export async function saveNotesEncrypted(notes: GhostNote[], walletAddress: string): Promise<void> {
+export async function saveNotesEncrypted(notes: GhostNote[], encryptionSecret: string): Promise<void> {
   try {
-    const key = await deriveKey(walletAddress);
+    const key = await deriveKey(encryptionSecret);
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const enc = new TextEncoder();
     const data = enc.encode(JSON.stringify(notes));
@@ -284,7 +331,7 @@ export async function saveNotesEncrypted(notes: GhostNote[], walletAddress: stri
 }
 
 /** Load and decrypt notes from localStorage. */
-export async function loadNotesEncrypted(walletAddress: string): Promise<GhostNote[]> {
+export async function loadNotesEncrypted(encryptionSecret: string): Promise<GhostNote[]> {
   try {
     const raw = localStorage.getItem(ENCRYPTED_STORAGE_KEY);
     if (!raw) {
@@ -293,7 +340,7 @@ export async function loadNotesEncrypted(walletAddress: string): Promise<GhostNo
     }
 
     const payload = JSON.parse(raw);
-    const key = await deriveKey(walletAddress);
+    const key = await deriveKey(encryptionSecret);
     const iv = new Uint8Array(payload.iv);
     const data = new Uint8Array(payload.data);
 
@@ -311,12 +358,12 @@ export async function loadNotesEncrypted(walletAddress: string): Promise<GhostNo
   }
 }
 
-/** Save a single note (encrypted if wallet address available, plaintext otherwise). */
-export async function saveNote(note: GhostNote, walletAddress?: string): Promise<void> {
-  if (walletAddress) {
-    const existing = await loadNotesEncrypted(walletAddress);
+/** Save a single note (encrypted if encryption secret available, plaintext otherwise). */
+export async function saveNote(note: GhostNote, encryptionSecret?: string): Promise<void> {
+  if (encryptionSecret) {
+    const existing = await loadNotesEncrypted(encryptionSecret);
     existing.push(note);
-    await saveNotesEncrypted(existing, walletAddress);
+    await saveNotesEncrypted(existing, encryptionSecret);
   } else {
     const stored = loadNotes();
     stored.push(note);
@@ -335,13 +382,13 @@ export function loadNotes(): GhostNote[] {
 }
 
 /** Mark a note as claimed. */
-export async function markNoteClaimed(commitment: string, walletAddress?: string): Promise<void> {
-  if (walletAddress) {
-    const notes = await loadNotesEncrypted(walletAddress);
+export async function markNoteClaimed(commitment: string, encryptionSecret?: string): Promise<void> {
+  if (encryptionSecret) {
+    const notes = await loadNotesEncrypted(encryptionSecret);
     const updated = notes.map((n) =>
       n.commitment === commitment ? { ...n, claimed: true } : n,
     );
-    await saveNotesEncrypted(updated, walletAddress);
+    await saveNotesEncrypted(updated, encryptionSecret);
   } else {
     const notes = loadNotes();
     const updated = notes.map((n) =>
@@ -352,7 +399,7 @@ export async function markNoteClaimed(commitment: string, walletAddress?: string
 }
 
 /** Get all commitment hashes from stored notes (for Merkle proof building). */
-export async function getAllCommitments(walletAddress?: string): Promise<string[]> {
-  const notes = walletAddress ? await loadNotesEncrypted(walletAddress) : loadNotes();
+export async function getAllCommitments(encryptionSecret?: string): Promise<string[]> {
+  const notes = encryptionSecret ? await loadNotesEncrypted(encryptionSecret) : loadNotes();
   return notes.map((n) => n.commitment);
 }

@@ -144,6 +144,15 @@ export const SHIELDED_POOL_ABI = [
     state_mutability: "view",
   },
   {
+    name: "is_known_root",
+    type: "function",
+    inputs: [
+      { name: "root", type: "core::felt252" },
+    ],
+    outputs: [{ type: "core::bool" }],
+    state_mutability: "view",
+  },
+  {
     name: "get_leaf_count",
     type: "function",
     inputs: [],

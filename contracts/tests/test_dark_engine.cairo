@@ -398,9 +398,11 @@ fn test_view_key_registration() {
     pool.deposit(commitment, 1, 0);
     stop_cheat_caller_address(pool_addr);
 
-    // Register view key
+    // Register view key (caller must be the depositor)
     let view_key_hash: felt252 = 0xBEEF;
+    start_cheat_caller_address(pool_addr, user1);
     pool.register_view_key(commitment, view_key_hash);
+    stop_cheat_caller_address(pool_addr);
 
     // Verify view key
     assert(pool.get_view_key(commitment) == view_key_hash, 'Wrong view key');
