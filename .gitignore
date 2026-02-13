@@ -17,10 +17,13 @@ contracts/target/dev/*.test.contract_class.json
 contracts/target/release/
 circuits/ghostsats/target/*.gz
 circuits/ghostsats/target/witness.gz
+circuits/ghostsats/zk_verifier/target/
+circuits/ghostsats/Prover.toml
 
 # Next.js
 frontend/.next/
 frontend/out/
+contracts/.next/
 .vercel/
 
 # Editor
