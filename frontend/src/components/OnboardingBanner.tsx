@@ -44,7 +44,7 @@ export default function OnboardingBanner() {
               <div className="flex items-start gap-2.5">
                 <span className="text-[10px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">01</span>
                 <div>
-                  <span className="text-[11px] text-[var(--text-primary)] font-medium">Get Sepolia ETH for gas</span>
+                  <span className="text-[11px] text-[var(--text-primary)] font-medium">Get Sepolia STRK/ETH for gas</span>
                   <a
                     href={STARKNET_FAUCET}
                     target="_blank"

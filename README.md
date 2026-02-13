@@ -246,6 +246,22 @@ npm install && npm run dev   # http://localhost:3000
 - **Privacy**: ZK proofs verified on-chain (Garaga), Pedersen commitments, Merkle proofs, nullifier set, gasless relayer, timing protection, anonymity sets, compliance portal
 - **Bitcoin**: Private USDC→WBTC via Avnu, dual wallet (Starknet + Bitcoin/Xverse), BTC identity binding, Bitcoin attestation (sign Merkle root), cross-chain withdrawal intents
 
+## Quick Demo (For Judges)
+
+**Try it live**: [ghostsats.vercel.app/app](https://ghostsats.vercel.app/app)
+
+1. Connect your Starknet wallet (Argent or Braavos on Sepolia)
+2. Click **"Mint 100 USDC"** in the Shield tab (testnet faucet)
+3. Select **100 USDC** tier and click **"Shield USDC"**
+4. Confirm the transaction (approve + deposit + batch in one tx)
+5. Wait 60 seconds (privacy cooldown)
+6. Switch to **Unveil tab** and click **"Unveil"**
+7. Click "View on Starkscan" — see the ZK proof in calldata (2835 elements)
+
+**Verify on-chain**: Open the ShieldedPool on [Starkscan](https://sepolia.starkscan.co/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) — check the `withdraw_private` transactions to see real ZK proof calldata.
+
+---
+
 ## End-to-End Verified on Sepolia
 
 The full pipeline has been verified end-to-end on Starknet Sepolia:
