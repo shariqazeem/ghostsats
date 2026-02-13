@@ -319,8 +319,11 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
     return false;
   }
 
-  // Fetch AVNU quote (required — no mock router fallback)
+  // Try AVNU quote first (works on mainnet with real tokens)
   let quote: AvnuQuote | null = null;
+  let minOut = 0n;
+  let onChainRoutes: any[] = [];
+
   for (let attempt = 1; attempt <= 3; attempt++) {
     quote = await fetchAvnuQuote(
       USDC_ADDRESS,
@@ -336,17 +339,47 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
     }
   }
 
-  if (!quote) {
+  if (quote) {
+    const buyAmount = BigInt(quote.buyAmount);
+    minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
+    onChainRoutes = buildOnChainRoutes(quote);
+    console.log(`  Expected WBTC:   ${buyAmount}`);
+    console.log(`  Min WBTC out:    ${minOut} (${SLIPPAGE_BPS / 100}% slippage)`);
+    console.log(`  Routes: ${onChainRoutes.length} hop(s)`);
+  } else if (deployedNetwork !== "mainnet") {
+    // Testnet mock router fallback — fetch live BTC price and set rate
+    console.log(`  No AVNU quote — using mock router with live BTC price...`);
+    try {
+      const priceRes = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+      );
+      const priceData = await priceRes.json();
+      const btcPrice = Math.round(priceData.bitcoin.usd);
+      console.log(`  Live BTC price: $${btcPrice}`);
+
+      // Set mock router rate: numerator=100, denominator=btcPrice
+      // USDC 6 decimals, WBTC 8 decimals → wbtc = usdc * 100 / btcPrice
+      const { CallData } = await import("starknet");
+      const setRateTx = await account.execute([{
+        contractAddress: ROUTER_ADDRESS,
+        entrypoint: "set_rate",
+        calldata: CallData.compile({
+          rate_numerator: { low: 100, high: 0 },
+          rate_denominator: { low: btcPrice, high: 0 },
+        }),
+      }]);
+      await provider.waitForTransaction(setRateTx.transaction_hash);
+      console.log(`  Rate updated: 100/${btcPrice} (tx: ${setRateTx.transaction_hash})`);
+    } catch (priceErr: any) {
+      console.warn(`  Price fetch/rate update failed: ${priceErr?.message}. Using existing rate.`);
+    }
+    // Execute with empty routes (mock router handles swap internally)
+    minOut = 0n;
+    onChainRoutes = [];
+  } else {
     console.error(`  No AVNU quote after 3 attempts — skipping this cycle.`);
     return false;
   }
-
-  const buyAmount = BigInt(quote.buyAmount);
-  const minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
-  const onChainRoutes = buildOnChainRoutes(quote);
-  console.log(`  Expected WBTC:   ${buyAmount}`);
-  console.log(`  Min WBTC out:    ${minOut} (${SLIPPAGE_BPS / 100}% slippage)`);
-  console.log(`  Routes: ${onChainRoutes.length} hop(s)`);
 
   // Execute batch
   console.log();
