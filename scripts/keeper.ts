@@ -23,7 +23,6 @@ import {
   Account,
   RpcProvider,
   Contract,
-  CallData,
   constants,
   type Abi,
 } from "starknet";
@@ -72,8 +71,9 @@ const ROUTER_ADDRESS =
 const AVNU_API_BASE =
   process.env.AVNU_API_BASE ?? "https://sepolia.api.avnu.fi";
 
-// Minimum pending USDC before triggering a batch (in token units)
-const MIN_PENDING = BigInt(process.env.MIN_PENDING ?? "100");
+// Minimum pending USDC before triggering a batch (in 6-decimal token units)
+// 100 USDC = 100_000_000 (6 decimals)
+const MIN_PENDING = BigInt(process.env.MIN_PENDING ?? "100000000");
 
 // Loop interval in milliseconds (5 minutes)
 const LOOP_INTERVAL_MS = 5 * 60 * 1000;
@@ -308,85 +308,48 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
     return false;
   }
 
-  // Update router with live BTC price before swap
-  try {
-    console.log(`  Fetching live BTC price...`);
-    const priceRes = await fetch(
-      "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd"
+  // Fetch AVNU quote (required — no mock router fallback)
+  let quote: AvnuQuote | null = null;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    quote = await fetchAvnuQuote(
+      USDC_ADDRESS,
+      WBTC_ADDRESS,
+      pendingBigInt,
+      POOL_ADDRESS
     );
-    const priceData = await priceRes.json();
-    const btcPrice = Math.round(priceData?.bitcoin?.usd ?? 97000);
-    console.log(`  BTC price: $${btcPrice.toLocaleString()}`);
-
-    console.log(`  Updating router rate (100/${btcPrice})...`);
-    const rateTx = await account.execute([{
-      contractAddress: ROUTER_ADDRESS,
-      entrypoint: "set_rate",
-      calldata: CallData.compile({
-        rate_numerator: { low: 100n, high: 0n },
-        rate_denominator: { low: BigInt(btcPrice), high: 0n },
-      }),
-    }]);
-    await provider.waitForTransaction(rateTx.transaction_hash);
-    console.log(`  Router rate updated to live price`);
-  } catch (err: any) {
-    console.log(`  Price update failed (using existing rate): ${err?.message ?? err}`);
+    if (quote) break;
+    if (attempt < 3) {
+      const delay = attempt * 5_000;
+      console.log(`  Retry ${attempt}/3 in ${delay / 1000}s...`);
+      await new Promise((r) => setTimeout(r, delay));
+    }
   }
 
-  // Try Avnu quote first, fall back to direct execution (mock router)
-  let minOut = 0n;
-  let onChainRoutes: object[] = [];
-
-  const quote = await fetchAvnuQuote(
-    USDC_ADDRESS,
-    WBTC_ADDRESS,
-    pendingBigInt,
-    POOL_ADDRESS
-  );
-
-  if (quote) {
-    const buyAmount = BigInt(quote.buyAmount);
-    minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
-    onChainRoutes = buildOnChainRoutes(quote);
-    console.log(`  Expected WBTC:   ${buyAmount}`);
-    console.log(`  Min WBTC out:    ${minOut} (${SLIPPAGE_BPS / 100}% slippage)`);
-    console.log(`  Routes: ${onChainRoutes.length} hop(s)`);
-  } else {
-    console.log(`  No Avnu quote — using direct execution (MockRouter mode)`);
-    console.log(`  min_wbtc_out=0, empty routes (router handles swap internally)`);
-    minOut = 0n;
-    onChainRoutes = [];
+  if (!quote) {
+    console.error(`  No AVNU quote after 3 attempts — skipping this cycle.`);
+    return false;
   }
+
+  const buyAmount = BigInt(quote.buyAmount);
+  const minOut = (buyAmount * BigInt(10_000 - SLIPPAGE_BPS)) / BigInt(10_000);
+  const onChainRoutes = buildOnChainRoutes(quote);
+  console.log(`  Expected WBTC:   ${buyAmount}`);
+  console.log(`  Min WBTC out:    ${minOut} (${SLIPPAGE_BPS / 100}% slippage)`);
+  console.log(`  Routes: ${onChainRoutes.length} hop(s)`);
 
   // Execute batch
   console.log();
   console.log(`  Calling execute_batch...`);
 
   try {
-    if (onChainRoutes.length > 0) {
-      // Use typed call for real Avnu routes
-      pool.connect(account);
-      const tx = await pool.execute_batch(
-        { low: minOut, high: 0n },
-        onChainRoutes
-      );
-      console.log(`  tx: ${tx.transaction_hash}`);
-      console.log(`  Waiting for confirmation...`);
-      await provider.waitForTransaction(tx.transaction_hash);
-    } else {
-      // MockRouter mode — execute_batch with min_wbtc_out=0, empty routes
-      const batchTx = await account.execute([{
-        contractAddress: POOL_ADDRESS,
-        entrypoint: "execute_batch",
-        calldata: CallData.compile({
-          min_wbtc_out: { low: 0n, high: 0n },
-          routes: [],
-        }),
-      }]);
-      console.log(`  tx: ${batchTx.transaction_hash}`);
-      console.log(`  Waiting for confirmation...`);
-      await provider.waitForTransaction(batchTx.transaction_hash);
-    }
+    pool.connect(account);
+    const tx = await pool.execute_batch(
+      { low: minOut, high: 0n },
+      onChainRoutes
+    );
+    console.log(`  tx: ${tx.transaction_hash}`);
+    console.log(`  Waiting for confirmation...`);
+    await provider.waitForTransaction(tx.transaction_hash);
 
     console.log(`  Batch executed successfully!`);
     console.log();

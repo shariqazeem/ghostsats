@@ -5,6 +5,7 @@
 
 use starknet::ContractAddress;
 use ghost_sats::BatchResult;
+use ghost_sats::IntentLock;
 use ghost_sats::avnu_interface::Route;
 
 /// Interface for the Garaga-generated ZK verifier contract.
@@ -156,6 +157,58 @@ pub trait IShieldedPool<TContractState> {
     fn set_zk_verifier(ref self: TContractState, verifier: ContractAddress);
 
     // ========================================
+    // Bitcoin Intent Settlement (Optimistic Escrow)
+    // ========================================
+
+    /// Withdraw via BTC intent: ZK verify + lock WBTC in escrow (not sent to user).
+    /// A solver will send BTC off-chain, oracle confirms, solver gets WBTC.
+    fn withdraw_with_btc_intent(
+        ref self: TContractState,
+        denomination: u8,
+        zk_nullifier: felt252,
+        zk_commitment: felt252,
+        proof: Array<felt252>,
+        merkle_path: Array<felt252>,
+        path_indices: Array<u8>,
+        recipient: ContractAddress,
+        btc_address_hash: felt252,
+    );
+
+    /// Solver claims an intent — announces they will send BTC.
+    fn claim_intent(ref self: TContractState, intent_id: u64);
+
+    /// Oracle confirms BTC payment observed on Bitcoin network.
+    /// Auto-releases WBTC to solver when oracle threshold is met.
+    fn confirm_btc_payment(ref self: TContractState, intent_id: u64);
+
+    /// Release escrowed WBTC to solver (callable by anyone if threshold met).
+    fn release_to_solver(ref self: TContractState, intent_id: u64);
+
+    /// Expire intent and refund WBTC to recipient after timeout.
+    fn expire_intent(ref self: TContractState, intent_id: u64);
+
+    /// Configure oracle signers, threshold, and timeout (owner only).
+    fn set_oracle_config(
+        ref self: TContractState,
+        signers: Array<ContractAddress>,
+        threshold: u32,
+        timeout: u64,
+    );
+
+    // ========================================
+    // Views: Intent Settlement
+    // ========================================
+
+    fn get_intent(self: @TContractState, intent_id: u64) -> IntentLock;
+    fn get_intent_count(self: @TContractState) -> u64;
+    fn get_oracle_threshold(self: @TContractState) -> u32;
+    fn get_intent_timeout(self: @TContractState) -> u64;
+    fn is_oracle(self: @TContractState, address: ContractAddress) -> bool;
+
+    /// Protocol version for upgrade tracking.
+    fn get_protocol_version(self: @TContractState) -> u32;
+
+    // ========================================
     // Compliance
     // ========================================
 
@@ -173,6 +226,7 @@ pub mod ShieldedPool {
     };
     use openzeppelin_interfaces::token::erc20::{IERC20Dispatcher, IERC20DispatcherTrait};
     use ghost_sats::BatchResult;
+    use ghost_sats::IntentLock;
     use ghost_sats::avnu_interface::{
         IAvnuExchangeDispatcher, IAvnuExchangeDispatcherTrait, Route,
     };
@@ -246,6 +300,16 @@ pub mod ShieldedPool {
         /// Tracks spent ZK nullifiers (derived from Poseidon BN254).
         zk_nullifiers: Map<felt252, bool>,
 
+        // ---- Bitcoin Intent Settlement ----
+        intent_locks: Map<u64, IntentLock>,
+        intent_count: u64,
+        oracle_signers: Map<ContractAddress, bool>,
+        oracle_signer_count: u32,
+        oracle_confirmations: Map<u64, Map<ContractAddress, bool>>,
+        oracle_confirmation_count: Map<u64, u32>,
+        oracle_threshold: u32,
+        intent_timeout: u64,
+
         // ---- Protocol Config ----
         usdc_token: ContractAddress,
         wbtc_token: ContractAddress,
@@ -269,6 +333,11 @@ pub mod ShieldedPool {
         ViewKeyRegistered: ViewKeyRegistered,
         BitcoinIdentityLinked: BitcoinIdentityLinked,
         BitcoinWithdrawalIntent: BitcoinWithdrawalIntent,
+        IntentCreated: IntentCreated,
+        IntentClaimed: IntentClaimed,
+        IntentConfirmed: IntentConfirmed,
+        IntentSettled: IntentSettled,
+        IntentExpired: IntentExpired,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -332,6 +401,45 @@ pub mod ShieldedPool {
         pub wbtc_amount: u256,
     }
 
+    #[derive(Drop, starknet::Event)]
+    pub struct IntentCreated {
+        #[key]
+        pub intent_id: u64,
+        pub btc_address_hash: felt252,
+        pub amount: u256,
+        pub recipient: ContractAddress,
+        pub timestamp: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct IntentClaimed {
+        #[key]
+        pub intent_id: u64,
+        pub solver: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct IntentConfirmed {
+        #[key]
+        pub intent_id: u64,
+        pub oracle: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct IntentSettled {
+        #[key]
+        pub intent_id: u64,
+        pub solver: ContractAddress,
+        pub amount: u256,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct IntentExpired {
+        #[key]
+        pub intent_id: u64,
+        pub refund_recipient: ContractAddress,
+    }
+
     // ========================================
     // Constructor
     // ========================================
@@ -350,6 +458,13 @@ pub mod ShieldedPool {
         self.owner.write(owner);
         self.avnu_router.write(avnu_router);
         self.zk_verifier.write(zk_verifier);
+
+        // Default intent settlement config: 1-of-1 oracle, 1hr timeout
+        self.oracle_threshold.write(1);
+        self.intent_timeout.write(3600);
+        // Owner is default oracle signer
+        self.oracle_signers.entry(owner).write(true);
+        self.oracle_signer_count.write(1);
 
         let empty_root = InternalImpl::compute_empty_root();
         self.merkle_root.write(empty_root);
@@ -804,6 +919,164 @@ pub mod ShieldedPool {
         fn get_view_key(self: @ContractState, commitment: felt252) -> felt252 {
             self.view_keys.entry(commitment).read()
         }
+
+        // ========================================
+        // Bitcoin Intent Settlement
+        // ========================================
+
+        fn withdraw_with_btc_intent(
+            ref self: ContractState,
+            denomination: u8,
+            zk_nullifier: felt252,
+            zk_commitment: felt252,
+            proof: Array<felt252>,
+            merkle_path: Array<felt252>,
+            path_indices: Array<u8>,
+            recipient: ContractAddress,
+            btc_address_hash: felt252,
+        ) {
+            assert(btc_address_hash != 0, 'BTC address required');
+
+            // ZK verify + nullify (same as withdraw_private, but don't transfer WBTC)
+            let (user_share, _batch_id) = InternalImpl::verify_zk_and_nullify(
+                ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices,
+            );
+
+            // Lock WBTC in escrow (stays in pool contract)
+            let intent_id = self.intent_count.read();
+            let now = get_block_timestamp();
+            let zero_addr: ContractAddress = 0.try_into().unwrap();
+
+            let lock = IntentLock {
+                amount: user_share,
+                btc_address_hash,
+                recipient,
+                solver: zero_addr,
+                timestamp: now,
+                status: 0, // CREATED
+            };
+
+            self.intent_locks.entry(intent_id).write(lock);
+            self.intent_count.write(intent_id + 1);
+
+            self.emit(IntentCreated {
+                intent_id,
+                btc_address_hash,
+                amount: user_share,
+                recipient,
+                timestamp: now,
+            });
+        }
+
+        fn claim_intent(ref self: ContractState, intent_id: u64) {
+            let mut lock = self.intent_locks.entry(intent_id).read();
+            assert(lock.status == 0, 'Intent not claimable');
+
+            let solver = get_caller_address();
+            lock.solver = solver;
+            lock.status = 1; // CLAIMED
+            self.intent_locks.entry(intent_id).write(lock);
+
+            self.emit(IntentClaimed { intent_id, solver });
+        }
+
+        fn confirm_btc_payment(ref self: ContractState, intent_id: u64) {
+            let oracle = get_caller_address();
+            assert(self.oracle_signers.entry(oracle).read(), 'Not an oracle');
+
+            let lock = self.intent_locks.entry(intent_id).read();
+            assert(lock.status == 1, 'Intent not claimed');
+
+            // Record oracle confirmation (idempotent per oracle)
+            assert(
+                !self.oracle_confirmations.entry(intent_id).entry(oracle).read(),
+                'Already confirmed',
+            );
+            self.oracle_confirmations.entry(intent_id).entry(oracle).write(true);
+            let count = self.oracle_confirmation_count.entry(intent_id).read() + 1;
+            self.oracle_confirmation_count.entry(intent_id).write(count);
+
+            self.emit(IntentConfirmed { intent_id, oracle });
+
+            // Auto-release WBTC to solver if oracle threshold met
+            let threshold = self.oracle_threshold.read();
+            if count >= threshold {
+                InternalImpl::do_release_to_solver(ref self, intent_id);
+            }
+        }
+
+        fn release_to_solver(ref self: ContractState, intent_id: u64) {
+            let count = self.oracle_confirmation_count.entry(intent_id).read();
+            let threshold = self.oracle_threshold.read();
+            assert(count >= threshold, 'Threshold not met');
+
+            InternalImpl::do_release_to_solver(ref self, intent_id);
+        }
+
+        fn expire_intent(ref self: ContractState, intent_id: u64) {
+            let mut lock = self.intent_locks.entry(intent_id).read();
+            assert(lock.status == 0 || lock.status == 1, 'Intent not active');
+
+            let now = get_block_timestamp();
+            let timeout = self.intent_timeout.read();
+            assert(now >= lock.timestamp + timeout, 'Intent not expired');
+
+            lock.status = 3; // EXPIRED
+            self.intent_locks.entry(intent_id).write(lock);
+
+            // Refund WBTC to recipient
+            let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
+            let success = wbtc.transfer(lock.recipient, lock.amount);
+            assert(success, 'WBTC refund failed');
+
+            self.emit(IntentExpired { intent_id, refund_recipient: lock.recipient });
+        }
+
+        fn set_oracle_config(
+            ref self: ContractState,
+            signers: Array<ContractAddress>,
+            threshold: u32,
+            timeout: u64,
+        ) {
+            assert(get_caller_address() == self.owner.read(), 'Only owner');
+            assert(threshold > 0, 'Threshold must be > 0');
+            assert(threshold <= signers.len(), 'Threshold > signers');
+
+            let mut i: u32 = 0;
+            let len = signers.len();
+            while i < len {
+                self.oracle_signers.entry(*signers.at(i)).write(true);
+                i += 1;
+            };
+
+            self.oracle_signer_count.write(len);
+            self.oracle_threshold.write(threshold);
+            self.intent_timeout.write(timeout);
+        }
+
+        fn get_intent(self: @ContractState, intent_id: u64) -> IntentLock {
+            self.intent_locks.entry(intent_id).read()
+        }
+
+        fn get_intent_count(self: @ContractState) -> u64 {
+            self.intent_count.read()
+        }
+
+        fn get_oracle_threshold(self: @ContractState) -> u32 {
+            self.oracle_threshold.read()
+        }
+
+        fn get_intent_timeout(self: @ContractState) -> u64 {
+            self.intent_timeout.read()
+        }
+
+        fn is_oracle(self: @ContractState, address: ContractAddress) -> bool {
+            self.oracle_signers.entry(address).read()
+        }
+
+        fn get_protocol_version(self: @ContractState) -> u32 {
+            2
+        }
     }
 
     // ========================================
@@ -1029,6 +1302,26 @@ pub mod ShieldedPool {
                 i += 1;
             };
             current
+        }
+
+        /// Release escrowed WBTC to the solver. Called when oracle threshold met.
+        fn do_release_to_solver(ref self: ContractState, intent_id: u64) {
+            let mut lock = self.intent_locks.entry(intent_id).read();
+            assert(lock.status == 1, 'Intent not claimed');
+
+            lock.status = 2; // SETTLED
+            self.intent_locks.entry(intent_id).write(lock);
+
+            // Transfer escrowed WBTC to solver
+            let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
+            let success = wbtc.transfer(lock.solver, lock.amount);
+            assert(success, 'Solver WBTC transfer failed');
+
+            self.emit(IntentSettled {
+                intent_id,
+                solver: lock.solver,
+                amount: lock.amount,
+            });
         }
 
         /// Compute the Merkle root from a leaf and its proof path.

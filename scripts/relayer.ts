@@ -87,6 +87,17 @@ interface RelayRequest {
   btc_recipient_hash: string;
 }
 
+interface IntentRelayRequest {
+  denomination: number;
+  zk_nullifier: string;
+  zk_commitment: string;
+  proof: string[];
+  merkle_path: string[];
+  path_indices: number[];
+  recipient: string;
+  btc_address_hash: string;
+}
+
 interface RelayResponse {
   success: boolean;
   txHash?: string;
@@ -136,6 +147,50 @@ function validateRequest(body: unknown): RelayRequest {
     path_indices: req.path_indices as number[],
     recipient: req.recipient,
     btc_recipient_hash: (req.btc_recipient_hash as string) ?? "0x0",
+  };
+}
+
+function validateIntentRequest(body: unknown): IntentRelayRequest {
+  if (typeof body !== "object" || body === null) {
+    throw new Error("Invalid request body");
+  }
+
+  const req = body as Record<string, unknown>;
+
+  if (typeof req.denomination !== "number" || req.denomination < 0 || req.denomination > 2) {
+    throw new Error("Invalid denomination (must be 0, 1, or 2)");
+  }
+  if (typeof req.zk_nullifier !== "string" || !req.zk_nullifier.startsWith("0x")) {
+    throw new Error("Invalid zk_nullifier");
+  }
+  if (typeof req.zk_commitment !== "string" || !req.zk_commitment.startsWith("0x")) {
+    throw new Error("Invalid zk_commitment");
+  }
+  if (!Array.isArray(req.proof)) {
+    throw new Error("Invalid proof (must be array)");
+  }
+  if (!Array.isArray(req.merkle_path) || req.merkle_path.length !== 20) {
+    throw new Error("Invalid merkle_path (must be array of length 20)");
+  }
+  if (!Array.isArray(req.path_indices) || req.path_indices.length !== 20) {
+    throw new Error("Invalid path_indices (must be array of length 20)");
+  }
+  if (typeof req.recipient !== "string" || !req.recipient.startsWith("0x")) {
+    throw new Error("Invalid recipient address");
+  }
+  if (typeof req.btc_address_hash !== "string" || !req.btc_address_hash.startsWith("0x")) {
+    throw new Error("Invalid btc_address_hash");
+  }
+
+  return {
+    denomination: req.denomination,
+    zk_nullifier: req.zk_nullifier,
+    zk_commitment: req.zk_commitment,
+    proof: req.proof as string[],
+    merkle_path: req.merkle_path as string[],
+    path_indices: req.path_indices as number[],
+    recipient: req.recipient,
+    btc_address_hash: req.btc_address_hash,
   };
 }
 
@@ -495,6 +550,71 @@ async function main() {
       return;
     }
 
+    // Relay BTC intent endpoint — gasless withdraw_with_btc_intent
+    if (req.method === "POST" && req.url === "/relay-intent") {
+      if (!hasRelayerCredentials || !relayerAccount) {
+        res.writeHead(503, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Relay not configured (no PRIVATE_KEY)" }));
+        return;
+      }
+
+      let body = "";
+      req.on("data", (chunk: string) => (body += chunk));
+      req.on("end", async () => {
+        let response: RelayResponse;
+        try {
+          const parsed = JSON.parse(body);
+          const intentReq = validateIntentRequest(parsed);
+
+          console.log(`[relay-intent] Received BTC intent request:`);
+          console.log(`  denomination:    ${intentReq.denomination}`);
+          console.log(`  recipient:       ${intentReq.recipient}`);
+          console.log(`  btc_address_hash: ${intentReq.btc_address_hash.slice(0, 12)}...`);
+
+          const calldata = CallData.compile({
+            denomination: intentReq.denomination,
+            zk_nullifier: intentReq.zk_nullifier,
+            zk_commitment: intentReq.zk_commitment,
+            proof: intentReq.proof,
+            merkle_path: intentReq.merkle_path,
+            path_indices: intentReq.path_indices,
+            recipient: intentReq.recipient,
+            btc_address_hash: intentReq.btc_address_hash,
+          });
+
+          console.log(`[relay-intent] Submitting withdraw_with_btc_intent (${calldata.length} calldata elements)...`);
+          const txResult = await relayerAccount!.execute([{
+            contractAddress: poolAddress,
+            entrypoint: "withdraw_with_btc_intent",
+            calldata,
+          }]);
+
+          const txHash = txResult.transaction_hash;
+          console.log(`[relay-intent] tx: ${txHash}`);
+
+          console.log(`[relay-intent] Waiting for confirmation...`);
+          try {
+            await rpcProvider.waitForTransaction(txHash, { retryInterval: 5000 });
+            console.log(`[relay-intent] Confirmed!`);
+          } catch (waitErr) {
+            console.warn(`[relay-intent] Confirmation wait failed: ${waitErr instanceof Error ? waitErr.message : waitErr}`);
+          }
+
+          response = { success: true, txHash };
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : String(err);
+          console.error(`[relay-intent] Error: ${msg}`);
+          response = { success: false, error: msg };
+        }
+
+        res.writeHead(response.success ? 200 : 400, {
+          "Content-Type": "application/json",
+        });
+        res.end(JSON.stringify(response));
+      });
+      return;
+    }
+
     // 404
     res.writeHead(404, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ error: "Not found" }));
@@ -502,11 +622,12 @@ async function main() {
 
   server.listen(PORT, () => {
     console.log(`Relayer + Prover listening on http://localhost:${PORT}`);
-    console.log(`  POST /calldata — Convert browser proof → garaga calldata (no secrets)`);
-    console.log(`  POST /relay    — Submit a gasless withdrawal`);
-    console.log(`  POST /prove    — [Legacy] Generate a ZK proof (nargo → bb → garaga)`);
-    console.log(`  GET  /health   — Health check`);
-    console.log(`  GET  /info     — Relayer info`);
+    console.log(`  POST /calldata      — Convert browser proof → garaga calldata (no secrets)`);
+    console.log(`  POST /relay         — Submit a gasless withdrawal`);
+    console.log(`  POST /relay-intent  — Submit a gasless BTC intent withdrawal`);
+    console.log(`  POST /prove         — [Legacy] Generate a ZK proof (nargo → bb → garaga)`);
+    console.log(`  GET  /health        — Health check`);
+    console.log(`  GET  /info          — Relayer info`);
     console.log();
   });
 }

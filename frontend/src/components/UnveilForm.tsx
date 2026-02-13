@@ -16,6 +16,7 @@ import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 import { CallData, RpcProvider, Contract, type Abi, num } from "starknet";
 
+type WithdrawMode = "wbtc" | "btc_intent";
 type ClaimPhase = "idle" | "building_proof" | "generating_zk" | "withdrawing" | "success" | "error";
 
 interface ProofDetails {
@@ -26,7 +27,7 @@ interface ProofDetails {
 }
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
-const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
+const SEPOLIA_EXPLORER = "https://sepolia.starkscan.co/tx/";
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 const GARAGA_VERIFIER = "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07";
 
@@ -177,7 +178,7 @@ function NoteCard({
           ) : (
             <Unlock size={14} strokeWidth={1.5} />
           )}
-          {isClaiming ? "Building proof..." : "Claim WBTC"}
+          {isClaiming ? "Building proof..." : "Unveil"}
         </motion.button>
       )}
     </motion.div>
@@ -202,6 +203,9 @@ export default function UnveilForm() {
   const [relayerFee, setRelayerFee] = useState<number | null>(null);
   const [proofDetails, setProofDetails] = useState<ProofDetails | null>(null);
   const [zkTimer, setZkTimer] = useState<number>(0);
+  const [withdrawMode, setWithdrawMode] = useState<WithdrawMode>("wbtc");
+  const [intentStatus, setIntentStatus] = useState<string | null>(null);
+  const [intentId, setIntentId] = useState<number | null>(null);
 
   const poolAddress = addresses.contracts.shieldedPool;
 
@@ -235,9 +239,36 @@ export default function UnveilForm() {
     fetchRelayerInfo();
   }, [useRelayer]);
 
+  // Poll for intent settlement status
+  useEffect(() => {
+    if (intentId === null || !poolAddress) return;
+    let cancelled = false;
+
+    async function pollIntent() {
+      const rpc = new RpcProvider({ nodeUrl: "https://starknet-sepolia-rpc.publicnode.com" });
+      const pool = new Contract({ abi: SHIELDED_POOL_ABI as unknown as Abi, address: poolAddress, providerOrAccount: rpc });
+
+      while (!cancelled) {
+        try {
+          const intent = await pool.call("get_intent", [intentId!]);
+          const status = Number((intent as any).status ?? 0);
+          const labels: Record<number, string> = { 0: "CREATED", 1: "CLAIMED", 2: "SETTLED", 3: "EXPIRED" };
+          setIntentStatus(labels[status] ?? "UNKNOWN");
+          if (status >= 2) break; // Terminal state
+        } catch { /* ignore */ }
+        await new Promise((r) => setTimeout(r, 10_000));
+      }
+    }
+
+    pollIntent();
+    return () => { cancelled = true; };
+  }, [intentId, poolAddress]);
+
   async function handleClaim(note: NoteWithStatus) {
     if (!isConnected || !address) return;
     if (!poolAddress) return;
+
+    const isBtcIntent = withdrawMode === "btc_intent" && btcWithdrawAddress.trim().length > 0;
 
     setClaimingCommitment(note.commitment);
     setClaimError(null);
@@ -245,6 +276,8 @@ export default function UnveilForm() {
     setClaimedWbtcAmount(null);
     setProofDetails(null);
     setZkTimer(0);
+    setIntentStatus(null);
+    setIntentId(null);
 
     try {
       setClaimPhase("building_proof");
@@ -268,7 +301,6 @@ export default function UnveilForm() {
         if (found === -1) {
           throw new Error("Commitment not found on-chain. It may not have been included in a batch yet.");
         }
-        // Auto-correct the leaf index
         note.leafIndex = found;
       }
       const validIndex = note.leafIndex ?? leafIndex;
@@ -288,7 +320,6 @@ export default function UnveilForm() {
       let usedZK = false;
 
       if (hasZK) {
-        // Attempt ZK proof generation — requires prover service running
         try {
           const zkStart = Date.now();
           const timer = setInterval(() => setZkTimer(Math.floor((Date.now() - zkStart) / 1000)), 500);
@@ -301,8 +332,67 @@ export default function UnveilForm() {
           clearInterval(timer);
           usedZK = true;
 
-          if (useRelayer) {
-            // Gasless via relayer
+          if (isBtcIntent) {
+            // BTC Intent path — lock WBTC in escrow for solver settlement
+            setProofDetails({
+              calldataElements: proof.length,
+              zkCommitment: note.zkCommitment!,
+              zkNullifier,
+              gasless: useRelayer,
+            });
+            setClaimPhase("withdrawing");
+
+            if (useRelayer) {
+              // Gasless BTC intent via relayer
+              const relayRes = await fetch(`${RELAYER_URL}/relay-intent`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  denomination,
+                  zk_nullifier: zkNullifier,
+                  zk_commitment: note.zkCommitment!,
+                  proof,
+                  merkle_path: merklePath,
+                  path_indices: pathIndices.map(Number),
+                  recipient: address,
+                  btc_address_hash: btcRecipientHash,
+                }),
+              });
+              const relayData = await relayRes.json();
+              if (!relayData.success) throw new Error(relayData.error ?? "Relayer failed");
+              setClaimTxHash(relayData.txHash);
+            } else {
+              // BTC intent, user pays gas
+              const intentCalls = [
+                {
+                  contractAddress: poolAddress,
+                  entrypoint: "withdraw_with_btc_intent",
+                  calldata: CallData.compile({
+                    denomination,
+                    zk_nullifier: zkNullifier,
+                    zk_commitment: note.zkCommitment!,
+                    proof,
+                    merkle_path: merklePath,
+                    path_indices: pathIndices,
+                    recipient: address,
+                    btc_address_hash: btcRecipientHash,
+                  }),
+                },
+              ];
+              const result = await sendAsync(intentCalls);
+              setClaimTxHash(result.transaction_hash);
+            }
+
+            // Get intent ID (current count before our tx = our intent ID)
+            try {
+              const countAfter = Number(await pool.call("get_intent_count", []));
+              setIntentId(countAfter - 1);
+              setIntentStatus("CREATED");
+            } catch { /* ignore */ }
+
+            setClaimedWbtcAmount(note.wbtcShare ?? null);
+          } else if (useRelayer) {
+            // Gasless WBTC withdrawal via relayer
             setProofDetails({
               calldataElements: proof.length,
               zkCommitment: note.zkCommitment!,
@@ -358,11 +448,9 @@ export default function UnveilForm() {
             setClaimedWbtcAmount(note.wbtcShare ?? null);
           }
         } catch (zkErr) {
-          // Log the full error for debugging
           console.error("[unveil] ZK proof error:", zkErr);
           const errMsg = zkErr instanceof Error ? zkErr.message : String(zkErr);
 
-          // Browser proving or calldata server unavailable — fall back to legacy
           const isInfraError = zkErr instanceof TypeError ||
             (zkErr instanceof Error && (
               zkErr.message.includes("fetch") ||
@@ -371,11 +459,10 @@ export default function UnveilForm() {
               zkErr.message.includes("Calldata generation failed") ||
               zkErr.message.includes("Failed to load ZK circuit")
             ));
-          if (!isInfraError) throw zkErr; // Re-throw non-infra errors
+          if (!isInfraError) throw zkErr;
 
           console.warn("[unveil] ZK proving unavailable, falling back to Pedersen withdrawal:", zkErr);
           toast("info", `ZK prover unavailable — ${errMsg.slice(0, 80)}`);
-          // Fall through to legacy path below
         }
       }
 
@@ -406,7 +493,7 @@ export default function UnveilForm() {
 
       await markNoteClaimed(note.commitment, address);
       setClaimPhase("success");
-      toast("success", "WBTC withdrawn privately");
+      toast("success", isBtcIntent ? "BTC intent created — solver will settle" : "WBTC withdrawn privately");
 
       await refreshNotes();
     } catch (err: unknown) {
@@ -522,7 +609,11 @@ export default function UnveilForm() {
         >
           <div className="flex items-center gap-2">
             <CheckCircle size={14} strokeWidth={1.5} />
-            <span className="font-medium">WBTC withdrawn privately{btcWithdrawAddress ? " + Bitcoin intent emitted" : ""}</span>
+            <span className="font-medium">
+              {intentId !== null
+                ? "BTC intent created — WBTC locked in escrow"
+                : "WBTC withdrawn privately"}
+            </span>
           </div>
           {claimedWbtcAmount && (
             <div className="text-xs text-emerald-400">
@@ -536,7 +627,7 @@ export default function UnveilForm() {
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-xs text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
             >
-              View on Voyager
+              View on Starkscan
               <ExternalLink size={10} strokeWidth={1.5} />
             </a>
           )}
@@ -653,25 +744,147 @@ export default function UnveilForm() {
         </div>
       )}
 
-      {/* Bitcoin Cross-Chain Intent */}
+      {/* Withdrawal Mode Selector */}
       {activeNotes.some((n) => n.status === "READY") && (
-        <div className="rounded-xl p-3.5 bg-orange-900/10 border border-orange-800/20 space-y-2">
-          <div className="flex items-center gap-1.5">
-            <Bitcoin size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
-            <span className="text-[11px] font-semibold text-[var(--accent-orange)] uppercase tracking-wider">
-              Bitcoin withdrawal intent (optional)
-            </span>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setWithdrawMode("wbtc")}
+              className={`rounded-xl p-3 text-left transition-all cursor-pointer border ${
+                withdrawMode === "wbtc"
+                  ? "bg-emerald-900/20 border-emerald-800/40"
+                  : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] hover:border-[var(--text-tertiary)]"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Unlock size={12} strokeWidth={1.5} className={withdrawMode === "wbtc" ? "text-emerald-400" : "text-[var(--text-tertiary)]"} />
+                <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                  withdrawMode === "wbtc" ? "text-emerald-400" : "text-[var(--text-tertiary)]"
+                }`}>
+                  Claim WBTC
+                </span>
+              </div>
+              <p className="text-[10px] text-[var(--text-tertiary)]">
+                Receive WBTC on Starknet
+              </p>
+            </button>
+            <button
+              onClick={() => setWithdrawMode("btc_intent")}
+              className={`rounded-xl p-3 text-left transition-all cursor-pointer border ${
+                withdrawMode === "btc_intent"
+                  ? "bg-orange-900/20 border-orange-800/40"
+                  : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] hover:border-[var(--text-tertiary)]"
+              }`}
+            >
+              <div className="flex items-center gap-1.5 mb-1">
+                <Bitcoin size={12} strokeWidth={1.5} className={withdrawMode === "btc_intent" ? "text-[var(--accent-orange)]" : "text-[var(--text-tertiary)]"} />
+                <span className={`text-[11px] font-semibold uppercase tracking-wider ${
+                  withdrawMode === "btc_intent" ? "text-[var(--accent-orange)]" : "text-[var(--text-tertiary)]"
+                }`}>
+                  Withdraw to BTC
+                </span>
+              </div>
+              <p className="text-[10px] text-[var(--text-tertiary)]">
+                Solver sends real Bitcoin
+              </p>
+            </button>
           </div>
-          <input
-            type="text"
-            placeholder="tb1q... or bc1q... (your Bitcoin address)"
-            value={btcWithdrawAddress}
-            onChange={(e) => setBtcWithdrawAddress(e.target.value)}
-            className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
-          />
-          <p className="text-[10px] text-[var(--text-tertiary)]">
-            <strong>Optional.</strong> You always receive WBTC on Starknet. This emits a cross-chain intent event that a future bridge can fulfill to send real BTC. No bridge is active yet — this signals bridge-ready design.
-          </p>
+
+          {/* BTC Intent Address Input */}
+          {withdrawMode === "btc_intent" && (
+            <div className="rounded-xl p-3.5 bg-orange-900/10 border border-orange-800/20 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Bitcoin size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                <span className="text-[11px] font-semibold text-[var(--accent-orange)] uppercase tracking-wider">
+                  Bitcoin Address
+                </span>
+              </div>
+              <input
+                type="text"
+                placeholder="tb1q... or bc1q... (your Bitcoin address)"
+                value={btcWithdrawAddress}
+                onChange={(e) => setBtcWithdrawAddress(e.target.value)}
+                className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
+              />
+              <p className="text-[10px] text-[var(--text-tertiary)]">
+                Your WBTC is locked in escrow. A solver sends BTC to this address, an oracle confirms, and the solver receives the WBTC. If no one fills, you get refunded after timeout.
+              </p>
+            </div>
+          )}
+
+          {/* Intent Settlement Tracker */}
+          {intentStatus && (
+            <div className="rounded-xl p-3.5 bg-orange-900/10 border border-orange-800/20 space-y-2">
+              <div className="flex items-center gap-1.5">
+                <Zap size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                <span className="text-[11px] font-semibold text-[var(--accent-orange)] uppercase tracking-wider">
+                  Intent #{intentId} Settlement
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1">
+                {["CREATED", "CLAIMED", "SETTLED"].map((step) => {
+                  const steps = ["CREATED", "CLAIMED", "SETTLED"];
+                  const currentIdx = steps.indexOf(intentStatus ?? "");
+                  const stepIdx = steps.indexOf(step);
+                  const isActive = stepIdx <= currentIdx;
+                  const isCurrent = step === intentStatus;
+                  return (
+                    <div
+                      key={step}
+                      className={`rounded-lg p-2 text-center border transition-all ${
+                        isCurrent
+                          ? "bg-orange-950/30 border-orange-600/50"
+                          : isActive
+                          ? "bg-emerald-950/20 border-emerald-800/30"
+                          : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)]"
+                      }`}
+                    >
+                      <div className="flex items-center justify-center gap-1 mb-0.5">
+                        {isCurrent && intentStatus !== "SETTLED" ? (
+                          <Loader size={9} className="animate-spin text-[var(--accent-orange)]" strokeWidth={2} />
+                        ) : isActive ? (
+                          <CheckCircle size={9} className="text-emerald-400" strokeWidth={2} />
+                        ) : null}
+                        <span className={`text-[10px] font-semibold ${
+                          isCurrent ? "text-[var(--accent-orange)]" : isActive ? "text-emerald-400" : "text-[var(--text-tertiary)]"
+                        }`}>
+                          {step}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className={`rounded-lg p-2 text-center border transition-all ${
+                  intentStatus === "EXPIRED"
+                    ? "bg-red-950/20 border-red-800/30"
+                    : "bg-[var(--bg-tertiary)] border-[var(--border-subtle)]"
+                }`}>
+                  <span className={`text-[10px] font-semibold ${
+                    intentStatus === "EXPIRED" ? "text-red-400" : "text-[var(--text-tertiary)]"
+                  }`}>
+                    {intentStatus === "EXPIRED" ? "EXPIRED" : "TIMEOUT"}
+                  </span>
+                </div>
+              </div>
+              {intentStatus === "SETTLED" && (
+                <p className="text-[10px] text-emerald-400 font-medium">
+                  BTC sent! Solver received your escrowed WBTC.
+                </p>
+              )}
+              {intentStatus === "EXPIRED" && (
+                <p className="text-[10px] text-red-400 font-medium">
+                  No solver filled the intent. WBTC refunded to your address.
+                </p>
+              )}
+              {(intentStatus === "CREATED" || intentStatus === "CLAIMED") && (
+                <p className="text-[10px] text-[var(--text-tertiary)]">
+                  {intentStatus === "CREATED"
+                    ? "Waiting for a solver to claim and send BTC..."
+                    : "Solver claimed — waiting for BTC confirmation..."}
+                </p>
+              )}
+            </div>
+          )}
         </div>
       )}
 

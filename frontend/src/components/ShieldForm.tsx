@@ -27,14 +27,14 @@ const PHASE_LABELS: Record<Phase, string> = {
   signing_btc: "Bitcoin wallet signing commitment hash...",
   generating_proof: "Computing Pedersen commitment & BTC identity...",
   generating_zk: "Generating zero-knowledge commitment...",
-  depositing: "Depositing to shielded pool & triggering batch swap...",
+  depositing: "Depositing to shielded pool...",
   success: "Shielded successfully",
   error: "Shield failed",
 };
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 
-const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
+const SEPOLIA_EXPLORER = "https://sepolia.starkscan.co/tx/";
 
 export default function ShieldForm() {
   const { address, isConnected } = useAccount();
@@ -52,6 +52,10 @@ export default function ShieldForm() {
 
   const poolAddress = addresses.contracts.shieldedPool;
   const usdcAddress = addresses.contracts.usdc;
+
+  // Detect live mode: real Sepolia USDC has no public mint()
+  const REAL_USDC = "0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080";
+  const isLiveMode = usdcAddress.toLowerCase() === REAL_USDC.toLowerCase();
 
   // Read USDC balance
   const { data: usdcBalance, refetch: refetchBalance } = useReadContract({
@@ -207,15 +211,6 @@ export default function ShieldForm() {
             zk_commitment: note.zkCommitment!,
           }),
         },
-        // Auto-execute batch (permissionless — anyone can trigger)
-        {
-          contractAddress: poolAddress,
-          entrypoint: "execute_batch",
-          calldata: CallData.compile({
-            min_wbtc_out: { low: 0n, high: 0n },
-            routes: [],
-          }),
-        },
       ];
       const result = await sendAsync(calls);
       setTxHash(result.transaction_hash);
@@ -224,7 +219,7 @@ export default function ShieldForm() {
       await saveNote(note, address);
 
       setPhase("success");
-      toast("success", "USDC shielded and batch swap triggered");
+      toast("success", "USDC shielded — keeper will batch-swap when threshold met");
     } catch (err: unknown) {
       setPhase("error");
       const msg = err instanceof Error ? err.message : "Unknown error";
@@ -295,27 +290,54 @@ export default function ShieldForm() {
                     <Droplets size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">
-                      Get Test USDC
-                    </p>
-                    <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
-                      This is a Sepolia testnet demo. Mint free test USDC to try the full Shield → Batch → Unveil flow.
-                    </p>
-                    <div className="flex items-center gap-3">
-                      <motion.button
-                        onClick={handleMintUsdc}
-                        disabled={minting || !address}
-                        className="px-4 py-2 bg-[var(--accent-orange)] text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
-                        whileTap={{ scale: 0.97 }}
-                        transition={spring}
-                      >
-                        <Droplets size={12} strokeWidth={2} />
-                        {minting ? "Minting..." : "Mint 100K USDC"}
-                      </motion.button>
-                      <span className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
-                        Balance: {balance.toLocaleString()} USDC
-                      </span>
-                    </div>
+                    {isLiveMode ? (
+                      <>
+                        <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">
+                          Get Sepolia USDC
+                        </p>
+                        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-2">
+                          This app uses real Sepolia testnet USDC (not mock tokens). To get test USDC:
+                        </p>
+                        <ol className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3 list-decimal list-inside space-y-1">
+                          <li>Get Sepolia ETH from a{" "}
+                            <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">faucet</a>
+                          </li>
+                          <li>Get Sepolia USDC from{" "}
+                            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">Circle Faucet</a>
+                          </li>
+                          <li>Bridge to Starknet via{" "}
+                            <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">StarkGate Bridge</a>
+                          </li>
+                        </ol>
+                        <span className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
+                          Balance: {balance.toLocaleString()} USDC
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">
+                          Get Test USDC
+                        </p>
+                        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
+                          This is a Sepolia testnet demo. Mint free test USDC to try the full Shield → Batch → Unveil flow.
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <motion.button
+                            onClick={handleMintUsdc}
+                            disabled={minting || !address}
+                            className="px-4 py-2 bg-[var(--accent-orange)] text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                            whileTap={{ scale: 0.97 }}
+                            transition={spring}
+                          >
+                            <Droplets size={12} strokeWidth={2} />
+                            {minting ? "Minting..." : "Mint 100K USDC"}
+                          </motion.button>
+                          <span className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
+                            Balance: {balance.toLocaleString()} USDC
+                          </span>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </motion.div>
@@ -324,7 +346,9 @@ export default function ShieldForm() {
             {/* USDC Balance indicator */}
             {isConnected && balance >= 100 && (
               <div className="flex items-center justify-between px-1">
-                <span className="text-[11px] text-[var(--text-tertiary)]">Wallet Balance</span>
+                <span className="text-[11px] text-[var(--text-tertiary)]">
+                  {isLiveMode ? "Sepolia USDC Balance" : "Test USDC Balance"}
+                </span>
                 <span className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
                   {balance.toLocaleString()} USDC
                 </span>
@@ -463,7 +487,7 @@ export default function ShieldForm() {
                   rel="noopener noreferrer"
                   className="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--accent-orange)] hover:underline font-[family-name:var(--font-geist-mono)]"
                 >
-                  View on Voyager
+                  View on Starkscan
                   <ExternalLink size={10} strokeWidth={1.5} />
                 </a>
               )}
@@ -473,8 +497,9 @@ export default function ShieldForm() {
               {phase === "success" && (
                 <div className="mt-3 space-y-2">
                   <p className="text-[11px] text-[var(--text-tertiary)]">
-                    Your USDC has been swapped to WBTC via batch execution. A 60-second privacy cooldown
-                    is now active — switch to the <strong>Unveil</strong> tab to see the countdown and claim your WBTC.
+                    Your USDC is deposited in the shielded pool. The keeper will automatically batch-swap to WBTC
+                    when the threshold is met. After the batch executes, a 60-second privacy cooldown activates —
+                    then switch to the <strong>Unveil</strong> tab to claim your WBTC.
                   </p>
                   <button
                     onClick={() => { setPhase("idle"); setTxHash(null); }}

@@ -93,7 +93,13 @@ async function declareContract(
     return declareResponse.class_hash;
   } catch (err: any) {
     const msg: string = err?.message ?? String(err);
-    if (msg.includes("already declared") || msg.includes("class already declared")) {
+    const data: string = JSON.stringify(err?.baseError?.data ?? {});
+    console.log(`  Declare error msg: ${msg.slice(0, 200)}`);
+    console.log(`  Declare error data: ${data.slice(0, 200)}`);
+    if (
+      msg.includes("already declared") ||
+      msg.includes("class already declared")
+    ) {
       const { hash } = await import("starknet");
       const classHash = hash.computeContractClassHash(compiledSierra);
       console.log(`  Already declared. Class hash: ${classHash}`);
@@ -291,8 +297,8 @@ async function main() {
   console.log(`    ZK Verifier     : ${zkVerifierAddress}`);
   console.log(`    ShieldedPool    : ${shieldedPoolAddress}`);
   console.log();
-  console.log("  View on Voyager:");
-  console.log(`    https://sepolia.voyager.online/contract/${shieldedPoolAddress}`);
+  console.log("  View on Starkscan:");
+  console.log(`    https://sepolia.starkscan.co/contract/${shieldedPoolAddress}`);
   console.log();
 
   // Write deployment manifest
@@ -306,6 +312,7 @@ async function main() {
       wbtc: wbtcAddress,
       avnuRouter: routerAddress,
       shieldedPool: shieldedPoolAddress,
+      ...(zkVerifierAddress !== "0x0" ? { garagaVerifier: zkVerifierAddress } : {}),
     },
     classHashes: {
       ShieldedPool: shieldedPoolClassHash,
@@ -331,6 +338,7 @@ async function main() {
       wbtc: wbtcAddress,
       avnuRouter: routerAddress,
       shieldedPool: shieldedPoolAddress,
+      ...(zkVerifierAddress !== "0x0" ? { garagaVerifier: zkVerifierAddress } : {}),
     },
     deployer: accountAddress,
     classHashes: deployment.classHashes,

@@ -9,6 +9,9 @@
     "keeper": "npx ts-node --esm keeper.ts",
     "keeper:loop": "npx ts-node --esm keeper.ts --loop",
     "keeper:dry-run": "npx ts-node --esm keeper.ts --dry-run",
+    "solver": "npx tsx solver.ts",
+    "solver:loop": "npx tsx solver.ts --loop",
+    "solver:dry-run": "npx tsx solver.ts --dry-run",
     "relayer": "npx ts-node --esm relayer.ts",
     "e2e": "npx ts-node --esm e2e-test.ts"
   },

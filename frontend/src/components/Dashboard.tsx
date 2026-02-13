@@ -9,7 +9,7 @@ import { SkeletonLine } from "./Skeleton";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 
-const VOYAGER_BASE = "https://sepolia.voyager.online/contract";
+const VOYAGER_BASE = "https://sepolia.starkscan.co/contract";
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
