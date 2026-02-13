@@ -27,7 +27,7 @@ interface ProofDetails {
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
-const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? process.env.NEXT_PUBLIC_PROVER_URL ?? "http://localhost:3001";
+const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 const GARAGA_VERIFIER = "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07";
 
 function truncateHash(h: string, chars = 4): string {

@@ -20,7 +20,7 @@
 import { poseidon2, poseidon3 } from "poseidon-lite";
 import { generateProofInBrowser } from "./browserProver";
 
-const CALLDATA_URL = process.env.NEXT_PUBLIC_PROVER_URL ?? "http://localhost:3001";
+const CALLDATA_URL = process.env.NEXT_PUBLIC_PROVER_URL ?? "/api/relayer";
 
 // BN254 Poseidon outputs (~2^254) can exceed felt252 max (~2^251).
 // Reduce modulo STARK_PRIME so values fit in felt252 for on-chain storage.
