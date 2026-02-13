@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "GhostSats - Bitcoin's Privacy Layer on Starknet";
+export const alt = "GhostSats - Private Bitcoin Accumulation Protocol";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -46,7 +46,7 @@ export default function OGImage() {
 
         {/* Tagline */}
         <div style={{ fontSize: "28px", color: "#A1A1AA", fontWeight: 500, marginBottom: "40px" }}>
-          Bitcoin&apos;s Privacy Layer on Starknet
+          Private Bitcoin Accumulation Protocol
         </div>
 
         {/* ZK Verified badge */}
@@ -59,7 +59,7 @@ export default function OGImage() {
 
         {/* Feature pills */}
         <div style={{ display: "flex", gap: "12px" }}>
-          {["Noir ZK Circuits", "Garaga Verifier", "Gasless Relayer", "BTC Identity"].map(
+          {["On-Chain ZK Proofs", "Batch Swaps", "BTC Settlement", "Starknet L2"].map(
             (text) => (
               <div
                 key={text}

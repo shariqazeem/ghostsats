@@ -5,6 +5,7 @@
  */
 
 import { hash } from "starknet";
+import { isMainnet } from "@/utils/network";
 
 /**
  * Sign the actual commitment hash with the Bitcoin wallet.
@@ -19,7 +20,7 @@ export async function signCommitment(btcAddress: string, commitmentHash: string)
       payload: {
         address: btcAddress,
         message: `GhostSats:COMMIT:${commitmentHash}`,
-        network: { type: BitcoinNetworkType.Testnet4 },
+        network: { type: isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet4 },
       },
       onFinish: (signature) => {
         resolve(signature);
@@ -72,7 +73,7 @@ export async function anchorMerkleRoot(
       payload: {
         address: btcAddress,
         message,
-        network: { type: BitcoinNetworkType.Testnet4 },
+        network: { type: isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet4 },
       },
       onFinish: (signature) => {
         resolve(signature);

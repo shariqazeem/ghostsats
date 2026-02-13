@@ -5,8 +5,9 @@ import { useAccount } from "@starknet-react/core";
 import { ArrowDownLeft, ArrowUpRight, ExternalLink, ChevronDown, ChevronUp, Shield, Unlock } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { type NoteWithStatus, checkAllNoteStatuses } from "@/utils/notesManager";
+import { EXPLORER_TX } from "@/utils/network";
 
-const SEPOLIA_EXPLORER = "https://sepolia.voyager.online/tx/";
+const TX_EXPLORER = EXPLORER_TX;
 
 function truncateHash(h: string, chars = 6): string {
   if (h.length <= chars * 2 + 2) return h;

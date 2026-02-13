@@ -8,6 +8,7 @@ import { type NoteWithStatus, checkAllNoteStatuses } from "@/utils/notesManager"
 import { computeNullifier, buildMerkleProof } from "@/utils/privacy";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
+import { RPC_URL, isMainnet } from "@/utils/network";
 import { CallData, RpcProvider, Contract, type Abi, num, hash } from "starknet";
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
@@ -77,7 +78,7 @@ export default function ComplianceTab() {
   async function exportProof(note: NoteWithStatus) {
     try {
       const rpc = new RpcProvider({
-        nodeUrl: "https://starknet-sepolia-rpc.publicnode.com",
+        nodeUrl: RPC_URL,
       });
       const pool = new Contract({
         abi: SHIELDED_POOL_ABI as unknown as Abi,
@@ -112,7 +113,7 @@ export default function ComplianceTab() {
       const proof = {
         protocol: "GhostSats",
         version: "1.0",
-        network: "starknet-sepolia",
+        network: isMainnet ? "starknet-mainnet" : "starknet-sepolia",
         contract: poolAddress,
         commitment: note.commitment,
         denomination: note.denomination,

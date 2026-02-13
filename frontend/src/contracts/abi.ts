@@ -331,6 +331,66 @@ export const SHIELDED_POOL_ABI = [
     outputs: [],
     state_mutability: "external",
   },
+  {
+    name: "execute_batch",
+    type: "function",
+    inputs: [
+      { name: "min_wbtc_out", type: "core::integer::u256" },
+      { name: "routes", type: "core::array::Array::<ghost_sats::avnu_interface::Route>" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "withdraw_with_btc_intent",
+    type: "function",
+    inputs: [
+      { name: "denomination", type: "core::integer::u8" },
+      { name: "zk_nullifier", type: "core::felt252" },
+      { name: "zk_commitment", type: "core::felt252" },
+      { name: "proof", type: "core::array::Array::<core::felt252>" },
+      { name: "merkle_path", type: "core::array::Array::<core::felt252>" },
+      { name: "path_indices", type: "core::array::Array::<core::integer::u8>" },
+      { name: "recipient", type: "core::starknet::contract_address::ContractAddress" },
+      { name: "btc_address_hash", type: "core::felt252" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "get_intent_count",
+    type: "function",
+    inputs: [],
+    outputs: [{ type: "core::integer::u64" }],
+    state_mutability: "view",
+  },
+  {
+    name: "get_intent",
+    type: "function",
+    inputs: [
+      { name: "intent_id", type: "core::integer::u64" },
+    ],
+    outputs: [{ type: "ghost_sats::IntentLock" }],
+    state_mutability: "view",
+  },
+  {
+    name: "claim_intent",
+    type: "function",
+    inputs: [
+      { name: "intent_id", type: "core::integer::u64" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
+  {
+    name: "confirm_btc_payment",
+    type: "function",
+    inputs: [
+      { name: "intent_id", type: "core::integer::u64" },
+    ],
+    outputs: [],
+    state_mutability: "external",
+  },
 ] as const;
 
 export const AVNU_ROUTER_ABI = [

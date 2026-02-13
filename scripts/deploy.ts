@@ -47,6 +47,17 @@ const LIVE_ADDRESSES = {
 };
 
 // ---------------------------------------------------------------------------
+// Mainnet Addresses
+// ---------------------------------------------------------------------------
+
+const MAINNET_ADDRESSES = {
+  usdc: "0x053c91253bc9682c04929ca02ed00b3e423f6710d2ee7e0d5ebb06f3ecf368a8",
+  wbtc: "0x03fe2b97c1fd336e750087d68b9b867997fd64a2661ff3ca5a7c771641e8e7ac",
+  avnuRouter:
+    "0x04270219d365d6b017231b52e92b3fb5d7c8378b05e9abc97724537a80e93b0f",
+};
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -105,6 +116,34 @@ async function declareContract(
       console.log(`  Already declared. Class hash: ${classHash}`);
       return classHash;
     }
+    // Handle CASM hash mismatch: extract expected hash and retry
+    const mismatchMatch = (data + msg).match(/Expected:\s*(0x[0-9a-fA-F]+)/);
+    if (mismatchMatch && msg.includes("Mismatch compiled class hash")) {
+      const expectedCasmHash = mismatchMatch[1];
+      console.log(`  CASM hash mismatch — retrying with expected hash: ${expectedCasmHash}`);
+      const retryPayload: DeclareContractPayload = {
+        contract: compiledSierra,
+        casm: compiledCasm,
+        compiledClassHash: expectedCasmHash,
+      };
+      try {
+        const retryResponse = await account.declare(retryPayload);
+        console.log(`  tx: ${retryResponse.transaction_hash}`);
+        console.log(`  Waiting for transaction ...`);
+        await provider.waitForTransaction(retryResponse.transaction_hash);
+        console.log(`  Class hash: ${retryResponse.class_hash}`);
+        return retryResponse.class_hash;
+      } catch (retryErr: any) {
+        const retryMsg: string = retryErr?.message ?? String(retryErr);
+        if (retryMsg.includes("already declared") || retryMsg.includes("class already declared")) {
+          const { hash } = await import("starknet");
+          const classHash = hash.computeContractClassHash(compiledSierra);
+          console.log(`  Already declared. Class hash: ${classHash}`);
+          return classHash;
+        }
+        throw retryErr;
+      }
+    }
     throw err;
   }
 }
@@ -133,12 +172,29 @@ async function deployContract(
 
 async function main() {
   const isLive = process.argv.includes("--live");
+  const isMainnet = process.argv.includes("--mainnet");
+
+  // Safety: mainnet requires --confirm flag
+  if (isMainnet && !process.argv.includes("--confirm")) {
+    console.error(
+      "\n  ⚠️  DEPLOYING TO MAINNET ⚠️\n" +
+        "  This will deploy contracts to Starknet MAINNET using real funds.\n" +
+        "  Add --confirm to proceed:\n\n" +
+        "    npm run deploy:mainnet -- --confirm\n"
+    );
+    process.exit(1);
+  }
 
   const privateKey = process.env.PRIVATE_KEY;
   const accountAddress = process.env.ACCOUNT_ADDRESS;
-  const rpcUrl =
-    process.env.STARKNET_RPC_URL ??
-    "https://starknet-sepolia-rpc.publicnode.com";
+  const defaultRpc = isMainnet
+    ? "https://starknet-mainnet.public.blastapi.io"
+    : "https://starknet-sepolia-rpc.publicnode.com";
+  const rpcUrl = process.env.STARKNET_RPC_URL ?? defaultRpc;
+  const networkName = isMainnet ? "Mainnet" : "Sepolia";
+  const explorerBase = isMainnet
+    ? "https://starkscan.co/contract/"
+    : "https://sepolia.starkscan.co/contract/";
 
   if (!privateKey || !accountAddress) {
     console.error(
@@ -148,8 +204,13 @@ async function main() {
     process.exit(1);
   }
 
-  console.log(`\nConnecting to Starknet Sepolia at ${rpcUrl} ...`);
-  console.log(`Mode: ${isLive ? "LIVE (real tokens + Avnu)" : "DEV (mock tokens + mock router)"}\n`);
+  console.log(`\nConnecting to Starknet ${networkName} at ${rpcUrl} ...`);
+  const modeLabel = isMainnet
+    ? "MAINNET (real tokens + Avnu)"
+    : isLive
+      ? "LIVE (real Sepolia tokens + Avnu)"
+      : "DEV (mock tokens + mock router)";
+  console.log(`Mode: ${modeLabel}\n`);
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
   const account = new Account(
@@ -165,7 +226,20 @@ async function main() {
   let mockERC20ClassHash = "";
   let mockAvnuRouterClassHash = "";
 
-  if (isLive) {
+  if (isMainnet) {
+    // =====================================================================
+    // MAINNET MODE: Use real mainnet tokens + Avnu
+    // =====================================================================
+    usdcAddress = MAINNET_ADDRESSES.usdc;
+    wbtcAddress = MAINNET_ADDRESSES.wbtc;
+    routerAddress = MAINNET_ADDRESSES.avnuRouter;
+
+    console.log("Using MAINNET addresses:");
+    console.log(`  USDC:        ${usdcAddress}`);
+    console.log(`  WBTC:        ${wbtcAddress}`);
+    console.log(`  Avnu Router: ${routerAddress}`);
+    console.log();
+  } else if (isLive) {
     // =====================================================================
     // LIVE MODE: Use real Sepolia tokens + Avnu
     // =====================================================================
@@ -287,7 +361,7 @@ async function main() {
 
   console.log("\n");
   console.log("=".repeat(60));
-  console.log(`  DEPLOYMENT COMPLETE (${isLive ? "LIVE" : "DEV"})`);
+  console.log(`  DEPLOYMENT COMPLETE (${isMainnet ? "MAINNET" : isLive ? "LIVE" : "DEV"})`);
   console.log("=".repeat(60));
   console.log();
   console.log("  Contract Addresses:");
@@ -298,13 +372,13 @@ async function main() {
   console.log(`    ShieldedPool    : ${shieldedPoolAddress}`);
   console.log();
   console.log("  View on Starkscan:");
-  console.log(`    https://sepolia.starkscan.co/contract/${shieldedPoolAddress}`);
+  console.log(`    ${explorerBase}${shieldedPoolAddress}`);
   console.log();
 
   // Write deployment manifest
   const deployment: Record<string, any> = {
-    network: "sepolia",
-    mode: isLive ? "live" : "dev",
+    network: isMainnet ? "mainnet" : "sepolia",
+    mode: isMainnet ? "mainnet" : isLive ? "live" : "dev",
     chainId,
     deployer: accountAddress,
     contracts: {

@@ -2,74 +2,106 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Shield, Eye, Layers, Lock, Users, Zap, Bitcoin, ArrowRight, Clock, ShieldCheck, Fingerprint, ExternalLink, CheckCircle } from "lucide-react";
+import {
+  Shield,
+  Eye,
+  Layers,
+  Lock,
+  Users,
+  Zap,
+  Bitcoin,
+  ArrowRight,
+  Clock,
+  ShieldCheck,
+  Fingerprint,
+  ExternalLink,
+  CheckCircle,
+  TrendingUp,
+  Building2,
+  BarChart3,
+  Globe,
+} from "lucide-react";
+import addresses from "@/contracts/addresses.json";
+import { EXPLORER_CONTRACT } from "@/utils/network";
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 
 const steps = [
   {
     icon: Shield,
-    title: "Shield",
-    desc: "Deposit a fixed USDC denomination. A Pedersen commitment hides your identity. Your Bitcoin wallet signs the commitment hash.",
+    title: "Deposit",
+    desc: "Deposit a fixed USDC denomination into the shielded pool. A Pedersen commitment hides your identity. Your Bitcoin wallet signs the commitment hash on-chain.",
     color: "var(--accent-orange)",
   },
   {
     icon: Layers,
-    title: "Batch",
-    desc: "A keeper aggregates all deposits into a single USDC-to-WBTC swap. Individual intent is hidden within the batch.",
+    title: "Batch Swap",
+    desc: "All deposits are aggregated into a single USDC-to-WBTC swap via AVNU. Individual accumulation intent is hidden within the batch — no front-running possible.",
     color: "var(--accent-green)",
   },
   {
     icon: Eye,
-    title: "Unveil",
-    desc: "A zero-knowledge proof verifies your deposit without revealing secrets. Withdraw WBTC to any address, optionally via a gasless relayer.",
+    title: "Private Claim",
+    desc: "Generate a zero-knowledge proof entirely in your browser. Claim WBTC to any address or create a BTC intent for native Bitcoin settlement. No link to the depositor.",
     color: "var(--text-primary)",
   },
 ];
 
 const features = [
   {
+    icon: Building2,
+    title: "Institutional Grade",
+    desc: "Fixed denominations ($1/$10/$100) create uniform anonymity sets. No amount-based correlation attacks.",
+  },
+  {
     icon: Lock,
-    title: "Deposit Unlinkability",
-    desc: "Fixed denominations make all deposits in a tier indistinguishable.",
+    title: "Front-Run Protection",
+    desc: "Individual buy orders are hidden in batch swaps. Market makers cannot extract MEV from your accumulation.",
   },
   {
     icon: Users,
     title: "Anonymity Sets",
-    desc: "Your deposit hides among others. More users = exponentially stronger privacy.",
+    desc: "Your deposit hides among others in the same tier. More participants = exponentially stronger privacy guarantees.",
   },
   {
-    icon: Zap,
-    title: "Gasless Withdrawals",
-    desc: "Relayer-powered withdrawals eliminate gas-based deanonymization.",
+    icon: TrendingUp,
+    title: "Best Execution",
+    desc: "Batch swaps via AVNU DEX aggregator ensure optimal routing across all Starknet liquidity sources.",
+  },
+  {
+    icon: Bitcoin,
+    title: "Native BTC Settlement",
+    desc: "Intent-based Bitcoin bridge: lock WBTC in escrow, a solver sends real BTC, oracle confirms. Trustless.",
+  },
+  {
+    icon: Fingerprint,
+    title: "On-Chain ZK Verification",
+    desc: "Noir circuits + Garaga verifier. Proofs generated in-browser, verified on-chain. Secrets never leave your device.",
+  },
+  {
+    icon: ShieldCheck,
+    title: "Compliance Ready",
+    desc: "Optional view keys let treasury teams prove transaction history to auditors without breaking pool privacy.",
   },
   {
     icon: Clock,
     title: "Timing Protection",
-    desc: "60-second minimum delay blocks deposit-and-immediately-withdraw attacks.",
+    desc: "60-second minimum delay between batch execution and withdrawal blocks deposit-and-immediately-withdraw attacks.",
   },
-  {
-    icon: Bitcoin,
-    title: "Bitcoin Identity Binding",
-    desc: "BTC wallet cryptographically signs each deposit commitment on-chain.",
-  },
-  {
-    icon: Fingerprint,
-    title: "Zero-Knowledge Proofs",
-    desc: "Noir ZK circuits + Garaga on-chain verifier. Secrets never appear in calldata.",
-  },
-  {
-    icon: ShieldCheck,
-    title: "Compliance Escape Hatch",
-    desc: "Optional view keys let users prove transaction history to regulators.",
-  },
+];
+
+const metrics = [
+  { label: "On-Chain ZK Proofs", value: "Garaga", sub: "UltraKeccakZKHonk" },
+  { label: "Proof Generation", value: "Browser", sub: "noir_js + bb.js WASM" },
+  { label: "Calldata Size", value: "~2,835", sub: "felt252 elements" },
+  { label: "Settlement", value: "<1s", sub: "Starknet L2" },
 ];
 
 export default function LandingPage() {
   return (
     <div className="min-h-screen bg-[var(--bg-primary)] overflow-hidden">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 py-4 sm:py-5">
+      <nav className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 py-4 sm:py-5 backdrop-blur-md bg-[var(--bg-primary)]/80">
         <div className="max-w-5xl mx-auto flex items-center justify-between">
           <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
             Ghost<span className="text-[var(--accent-orange)]">Sats</span>
@@ -100,10 +132,15 @@ export default function LandingPage() {
 
       {/* Hero */}
       <section className="relative pt-32 sm:pt-44 pb-20 sm:pb-32 px-4 sm:px-6">
-        {/* Gradient orb */}
-        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[500px] h-[500px] rounded-full opacity-20 pointer-events-none"
+        {/* Gradient orbs */}
+        <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[600px] h-[600px] rounded-full opacity-15 pointer-events-none"
           style={{
-            background: "radial-gradient(circle, rgba(255,90,0,0.3) 0%, rgba(255,90,0,0) 70%)",
+            background: "radial-gradient(circle, rgba(255,90,0,0.4) 0%, rgba(255,90,0,0) 70%)",
+          }}
+        />
+        <div className="absolute top-40 left-1/4 w-[300px] h-[300px] rounded-full opacity-10 pointer-events-none"
+          style={{
+            background: "radial-gradient(circle, rgba(16,185,129,0.3) 0%, transparent 70%)",
           }}
         />
 
@@ -116,25 +153,30 @@ export default function LandingPage() {
             <div className="inline-flex items-center gap-3 px-4 py-2 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] mb-6">
               <span className="inline-flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
-                <span className="text-[11px] text-[var(--text-secondary)] font-medium">Live on Starknet Sepolia</span>
+                <span className="text-[11px] text-[var(--text-secondary)] font-medium">Live on Starknet</span>
               </span>
               <span className="w-px h-3 bg-[var(--border-subtle)]" />
               <span className="inline-flex items-center gap-1.5">
                 <Fingerprint size={10} strokeWidth={2} className="text-emerald-400" />
-                <span className="text-[11px] text-emerald-400 font-medium">ZK Proofs Verified On-Chain</span>
+                <span className="text-[11px] text-emerald-400 font-medium">ZK Verified On-Chain</span>
+              </span>
+              <span className="w-px h-3 bg-[var(--border-subtle)]" />
+              <span className="inline-flex items-center gap-1.5">
+                <Bitcoin size={10} strokeWidth={2} className="text-[var(--accent-orange)]" />
+                <span className="text-[11px] text-[var(--accent-orange)] font-medium">BTC Settlement</span>
               </span>
             </div>
           </motion.div>
 
           <motion.h1
-            className="text-[36px] sm:text-[56px] font-black tracking-tight text-[var(--text-primary)] leading-[1.1] mb-5"
+            className="text-[32px] sm:text-[56px] font-black tracking-tight text-[var(--text-primary)] leading-[1.08] mb-5"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.1, ease: [0.4, 0, 0.2, 1] }}
           >
-            Bitcoin&apos;s
+            Private Bitcoin
             <br />
-            <span className="text-[var(--accent-orange)]">Privacy Layer</span>
+            <span className="text-[var(--accent-orange)]">Accumulation Protocol</span>
           </motion.h1>
 
           <motion.p
@@ -143,7 +185,7 @@ export default function LandingPage() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.2, ease: [0.4, 0, 0.2, 1] }}
           >
-            Private USDC-to-WBTC execution on Starknet. Real ZK proofs verified on-chain by Garaga. Secrets never touch calldata. Gasless withdrawals break every link.
+            Accumulate BTC without revealing your position. Deposit stablecoins into a shielded pool, batch-swap to WBTC at market rates, and withdraw privately with zero-knowledge proofs verified on-chain.
           </motion.p>
 
           <motion.div
@@ -160,7 +202,7 @@ export default function LandingPage() {
                 transition={spring}
               >
                 <Shield size={16} strokeWidth={1.5} />
-                Start Shielding
+                Start Accumulating
               </motion.button>
             </Link>
             <a
@@ -175,6 +217,49 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* The Problem */}
+      <section className="px-4 sm:px-6 pb-20 sm:pb-28">
+        <div className="max-w-4xl mx-auto">
+          <motion.div
+            className="glass-card p-6 sm:p-10 relative overflow-hidden"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="absolute top-0 right-0 w-80 h-80 rounded-full opacity-[0.04] pointer-events-none"
+              style={{ background: "radial-gradient(circle, #EF4444 0%, transparent 70%)" }}
+            />
+            <div className="flex items-center gap-2 mb-6">
+              <BarChart3 size={16} strokeWidth={1.5} className="text-red-400" />
+              <h2 className="text-[15px] font-bold text-[var(--text-primary)]">The Problem</h2>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
+              {[
+                {
+                  title: "Front-Running",
+                  desc: "On-chain buy orders are visible in the mempool. Bots sandwich your trades, extracting value before execution.",
+                },
+                {
+                  title: "Position Leakage",
+                  desc: "Every deposit and swap is public. Competitors, analysts, and adversaries can track your accumulation strategy in real-time.",
+                },
+                {
+                  title: "Amount Correlation",
+                  desc: "Unique transaction amounts create fingerprints. Even across wallets, your accumulation pattern can be reconstructed.",
+                },
+              ].map((item, i) => (
+                <div key={item.title}>
+                  <div className="text-[11px] font-[family-name:var(--font-geist-mono)] text-red-400/50 mb-1">0{i + 1}</div>
+                  <h3 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1.5">{item.title}</h3>
+                  <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed">{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
       {/* How It Works */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-32">
         <div className="max-w-4xl mx-auto">
@@ -182,18 +267,25 @@ export default function LandingPage() {
             <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
               How It Works
             </span>
+            <h2 className="text-[20px] sm:text-[28px] font-black tracking-tight text-[var(--text-primary)] mt-3">
+              Three Steps to Private Accumulation
+            </h2>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
             {steps.map((step, i) => (
               <motion.div
                 key={step.title}
-                className="glass-card p-6 text-center"
+                className="glass-card p-6 text-center relative"
                 initial={{ opacity: 0, y: 20 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.6, delay: i * 0.15 }}
               >
+                {/* Step connector line */}
+                {i < 2 && (
+                  <div className="hidden sm:block absolute top-1/2 -right-3 w-6 h-px bg-[var(--border-subtle)]" />
+                )}
                 <div className="w-12 h-12 rounded-2xl mx-auto mb-4 flex items-center justify-center"
                   style={{ background: `${step.color}15`, border: `1px solid ${step.color}20` }}>
                   <step.icon size={20} strokeWidth={1.5} style={{ color: step.color }} />
@@ -215,26 +307,55 @@ export default function LandingPage() {
         </div>
       </section>
 
+      {/* Key Metrics Bar */}
+      <section className="px-4 sm:px-6 pb-20 sm:pb-28">
+        <div className="max-w-4xl mx-auto">
+          <div className="glass-card p-6 sm:p-8">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-6">
+              {metrics.map((m, i) => (
+                <motion.div
+                  key={m.label}
+                  className="text-center"
+                  initial={{ opacity: 0, y: 12 }}
+                  whileInView={{ opacity: 1, y: 0 }}
+                  viewport={{ once: true }}
+                  transition={{ duration: 0.5, delay: i * 0.1 }}
+                >
+                  <div className="text-[22px] sm:text-[28px] font-[family-name:var(--font-geist-mono)] font-bold text-[var(--text-primary)] font-tabular tracking-tight">
+                    {m.value}
+                  </div>
+                  <div className="text-[11px] font-semibold text-[var(--text-secondary)] mt-0.5">{m.label}</div>
+                  <div className="text-[10px] text-[var(--text-tertiary)]">{m.sub}</div>
+                </motion.div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </section>
+
       {/* Privacy Guarantees */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-32">
         <div className="max-w-4xl mx-auto">
           <div className="text-center mb-12">
             <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
-              Privacy Guarantees
+              Privacy Architecture
             </span>
+            <h2 className="text-[20px] sm:text-[28px] font-black tracking-tight text-[var(--text-primary)] mt-3">
+              Why Institutions Choose GhostSats
+            </h2>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {features.map((feat, i) => (
               <motion.div
                 key={feat.title}
-                className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                className="p-5 rounded-2xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] hover:border-[var(--border-medium)] transition-colors"
                 initial={{ opacity: 0, y: 16 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
+                transition={{ duration: 0.5, delay: i * 0.06 }}
               >
-                <feat.icon size={16} strokeWidth={1.5} className="text-[var(--text-tertiary)] mb-3" />
+                <feat.icon size={16} strokeWidth={1.5} className="text-[var(--accent-orange)] mb-3" />
                 <h4 className="text-[13px] font-semibold text-[var(--text-primary)] mb-1">
                   {feat.title}
                 </h4>
@@ -247,15 +368,9 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Verified On-Chain — The Differentiator */}
+      {/* Verified On-Chain */}
       <section className="px-4 sm:px-6 pb-20 sm:pb-32">
         <div className="max-w-4xl mx-auto">
-          <div className="text-center mb-12">
-            <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
-              Verified On-Chain
-            </span>
-          </div>
-
           <motion.div
             className="glass-card p-6 sm:p-8 relative overflow-hidden"
             initial={{ opacity: 0, y: 20 }}
@@ -309,25 +424,82 @@ export default function LandingPage() {
             {/* Contract Links */}
             <div className="flex flex-wrap gap-2">
               <a
-                href="https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af"
+                href={`${EXPLORER_CONTRACT}${addresses.contracts.shieldedPool}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[11px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
               >
                 <Shield size={12} strokeWidth={1.5} />
-                ShieldedPool on Voyager
+                ShieldedPool on Starkscan
                 <ExternalLink size={10} strokeWidth={2} className="opacity-50" />
               </a>
               <a
-                href="https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07"
+                href={`${EXPLORER_CONTRACT}${(addresses.contracts as Record<string, string>).garagaVerifier ?? ""}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-800/20 transition-colors text-[11px] font-medium text-emerald-400"
               >
                 <Fingerprint size={12} strokeWidth={1.5} />
-                Garaga ZK Verifier on Voyager
+                Garaga ZK Verifier on Starkscan
                 <ExternalLink size={10} strokeWidth={2} className="opacity-50" />
               </a>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* Architecture Diagram */}
+      <section className="px-4 sm:px-6 pb-20 sm:pb-32">
+        <div className="max-w-4xl mx-auto">
+          <div className="text-center mb-10">
+            <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
+              Architecture
+            </span>
+          </div>
+          <motion.div
+            className="glass-card p-6 sm:p-8"
+            initial={{ opacity: 0, y: 20 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+          >
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Layer 1: User */}
+              <div className="rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] p-4">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--accent-orange)] mb-3">Client Layer</div>
+                <div className="space-y-2">
+                  {["Next.js Frontend", "noir_js Witness Gen", "bb.js Proof Gen", "Starknet + BTC Wallets"].map((item) => (
+                    <div key={item} className="flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-[var(--accent-orange)]" />
+                      <span className="text-[11px] text-[var(--text-secondary)]">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Layer 2: Protocol */}
+              <div className="rounded-xl bg-[var(--bg-secondary)] border border-emerald-800/20 p-4">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-emerald-400 mb-3">Protocol Layer</div>
+                <div className="space-y-2">
+                  {["ShieldedPool (Cairo)", "Garaga ZK Verifier", "Merkle Tree (depth 20)", "Intent Escrow System"].map((item) => (
+                    <div key={item} className="flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                      <span className="text-[11px] text-[var(--text-secondary)]">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              {/* Layer 3: Settlement */}
+              <div className="rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] p-4">
+                <div className="text-[10px] font-semibold uppercase tracking-wider text-[var(--text-secondary)] mb-3">Settlement Layer</div>
+                <div className="space-y-2">
+                  {["AVNU DEX Aggregator", "Starknet L2 (sub-$0.01)", "Bitcoin L1 (intent bridge)", "Oracle Confirmation"].map((item) => (
+                    <div key={item} className="flex items-center gap-2">
+                      <span className="w-1 h-1 rounded-full bg-[var(--text-tertiary)]" />
+                      <span className="text-[11px] text-[var(--text-secondary)]">{item}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </motion.div>
         </div>
@@ -352,7 +524,7 @@ export default function LandingPage() {
                 "Pedersen Hash",
                 "Poseidon BN254",
                 "Merkle Trees",
-                "Avnu DEX",
+                "AVNU DEX",
                 "Next.js 16",
                 "sats-connect",
                 "snforge",
@@ -373,10 +545,10 @@ export default function LandingPage() {
       <section className="px-4 sm:px-6 pb-20 sm:pb-32">
         <div className="max-w-2xl mx-auto text-center">
           <h2 className="text-[24px] sm:text-[32px] font-black tracking-tight text-[var(--text-primary)] mb-4">
-            Privacy is not optional.
+            Start Accumulating Privately.
           </h2>
           <p className="text-[14px] text-[var(--text-secondary)] mb-8 max-w-lg mx-auto">
-            Every deposit strengthens the anonymity set for everyone. Join the privacy pool.
+            Every deposit strengthens the anonymity set for all participants. The protocol is non-custodial, verifiable, and live on Starknet.
           </p>
           <Link href="/app">
             <motion.button
@@ -397,10 +569,10 @@ export default function LandingPage() {
       <footer className="text-center pb-10 px-4">
         <div className="h-px bg-[var(--border-subtle)] max-w-lg mx-auto mb-8" />
         <p className="text-[11px] text-[var(--text-tertiary)] tracking-widest uppercase">
-          GhostSats &middot; Re&#123;define&#125; Hackathon 2026
+          GhostSats &middot; Private Bitcoin Accumulation Protocol
         </p>
         <p className="text-[10px] text-[var(--text-quaternary)] mt-1">
-          ZK Proofs &middot; Pedersen Commitments &middot; Merkle Proofs &middot; Nullifier Set &middot; Bitcoin Identity
+          Re&#123;define&#125; Hackathon 2026 &middot; ZK Proofs &middot; Starknet &middot; Bitcoin
         </p>
       </footer>
     </div>

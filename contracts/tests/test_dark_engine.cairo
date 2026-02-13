@@ -100,39 +100,39 @@ fn test_three_users_deposit_and_batch_execute() {
     let user2 = addr('user2');
     let user3 = addr('user3');
 
-    // denomination 1 = 1_000_000_000 USDC each (1000 USDC with 6 decimals)
-    let amount: u256 = 1_000_000_000;
+    // denomination 1 = 10_000_000 USDC each ($10 USDC with 6 decimals)
+    let amount: u256 = 10_000_000;
     let commitment1 = compute_commitment(amount, 0x111, 0xA01);
     let commitment2 = compute_commitment(amount, 0x222, 0xA02);
     let commitment3 = compute_commitment(amount, 0x333, 0xA03);
 
     // Mint USDC to users
-    usdc_mock.mint(user1, 100_000_000_000);
-    usdc_mock.mint(user2, 100_000_000_000);
-    usdc_mock.mint(user3, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
+    usdc_mock.mint(user2, 1_000_000_000);
+    usdc_mock.mint(user3, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
-    // User 1: approve + deposit denomination 1 (1_000_000_000)
+    // User 1: approve + deposit denomination 1 (10_000_000)
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(commitment1, 1, 0);
     stop_cheat_caller_address(pool_addr);
 
-    // User 2: approve + deposit denomination 1 (1_000_000_000)
+    // User 2: approve + deposit denomination 1 (10_000_000)
     start_cheat_caller_address(usdc_addr, user2);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, user2);
     pool.deposit(commitment2, 1, 0);
     stop_cheat_caller_address(pool_addr);
 
-    // User 3: approve + deposit denomination 1 (1_000_000_000)
+    // User 3: approve + deposit denomination 1 (10_000_000)
     start_cheat_caller_address(usdc_addr, user3);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, user3);
@@ -140,11 +140,11 @@ fn test_three_users_deposit_and_batch_execute() {
     stop_cheat_caller_address(pool_addr);
 
     // Verify pre-execution state
-    assert(pool.get_pending_usdc() == 3_000_000_000, 'Wrong pending USDC');
+    assert(pool.get_pending_usdc() == 30_000_000, 'Wrong pending USDC');
     assert(pool.get_batch_count() == 3, 'Wrong batch count');
     assert(pool.get_current_batch_id() == 0, 'Batch ID should be 0');
     assert(pool.get_leaf_count() == 3, 'Wrong leaf count');
-    assert(pool.get_total_volume() == 3_000_000_000, 'Wrong total volume');
+    assert(pool.get_total_volume() == 30_000_000, 'Wrong total volume');
 
     // Commitments are valid
     assert(pool.is_commitment_valid(commitment1), 'Commitment 1 invalid');
@@ -152,7 +152,7 @@ fn test_three_users_deposit_and_batch_execute() {
     assert(pool.is_commitment_valid(commitment3), 'Commitment 3 invalid');
 
     // Pool holds all USDC
-    assert(usdc.balance_of(pool_addr) == 3_000_000_000, 'Pool should hold 3B USDC');
+    assert(usdc.balance_of(pool_addr) == 30_000_000, 'Pool should hold 30M USDC');
 
     // Merkle root should not be zero (tree has leaves)
     let root = pool.get_merkle_root();
@@ -172,12 +172,12 @@ fn test_three_users_deposit_and_batch_execute() {
     assert(pool.get_total_batches_executed() == 1, 'Wrong batches executed');
 
     let result = pool.get_batch_result(0);
-    assert(result.total_usdc_in == 3_000_000_000, 'Wrong USDC in BatchResult');
-    assert(result.total_wbtc_out == 3_000_000_000, 'Wrong WBTC in BatchResult');
+    assert(result.total_usdc_in == 30_000_000, 'Wrong USDC in BatchResult');
+    assert(result.total_wbtc_out == 30_000_000, 'Wrong WBTC in BatchResult');
     assert(result.is_finalized, 'Batch not finalized');
 
     assert(usdc.balance_of(pool_addr) == 0, 'Pool should have 0 USDC');
-    assert(wbtc.balance_of(pool_addr) == 3_000_000_000, 'Pool should have 3B WBTC');
+    assert(wbtc.balance_of(pool_addr) == 30_000_000, 'Pool should have 30M WBTC');
 
     spy.assert_emitted(
         @array![
@@ -186,8 +186,8 @@ fn test_three_users_deposit_and_batch_execute() {
                 ShieldedPool::Event::BatchExecuted(
                     ShieldedPool::BatchExecuted {
                         batch_id: 0,
-                        total_usdc: 3_000_000_000,
-                        wbtc_received: 3_000_000_000,
+                        total_usdc: 30_000_000,
+                        wbtc_received: 30_000_000,
                     },
                 ),
             ),
@@ -205,16 +205,16 @@ fn test_multiple_batches_sequential() {
 
     let user1 = addr('user1');
 
-    usdc_mock.mint(user1, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     let usdc = IERC20Dispatcher { contract_address: usdc_addr };
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    // Batch 0: deposit 1_000_000_000 (denomination 1)
-    let commitment_a = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    // Batch 0: deposit 10_000_000 (denomination 1 = $10)
+    let commitment_a = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(commitment_a, 1, 0);
     stop_cheat_caller_address(pool_addr);
@@ -224,12 +224,12 @@ fn test_multiple_batches_sequential() {
     stop_cheat_caller_address(pool_addr);
 
     let result0 = pool.get_batch_result(0);
-    assert(result0.total_usdc_in == 1_000_000_000, 'Batch 0: wrong USDC');
-    assert(result0.total_wbtc_out == 1_000_000_000, 'Batch 0: wrong WBTC');
+    assert(result0.total_usdc_in == 10_000_000, 'Batch 0: wrong USDC');
+    assert(result0.total_wbtc_out == 10_000_000, 'Batch 0: wrong WBTC');
     assert(pool.get_current_batch_id() == 1, 'Should be batch 1 now');
 
-    // Batch 1: deposit 10_000_000_000 (denomination 2)
-    let commitment_b = compute_commitment(10_000_000_000, 0xCCC, 0xDDD);
+    // Batch 1: deposit 100_000_000 (denomination 2 = $100)
+    let commitment_b = compute_commitment(100_000_000, 0xCCC, 0xDDD);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(commitment_b, 2, 0);
     stop_cheat_caller_address(pool_addr);
@@ -239,15 +239,16 @@ fn test_multiple_batches_sequential() {
     stop_cheat_caller_address(pool_addr);
 
     let result1 = pool.get_batch_result(1);
-    assert(result1.total_usdc_in == 10_000_000_000, 'Batch 1: wrong USDC');
-    assert(result1.total_wbtc_out == 10_000_000_000, 'Batch 1: wrong WBTC');
+    assert(result1.total_usdc_in == 100_000_000, 'Batch 1: wrong USDC');
+    assert(result1.total_wbtc_out == 100_000_000, 'Batch 1: wrong WBTC');
     assert(pool.get_current_batch_id() == 2, 'Should be batch 2 now');
     assert(pool.get_total_batches_executed() == 2, 'Wrong total batches');
-    assert(pool.get_total_volume() == 11_000_000_000, 'Wrong total volume');
+    assert(pool.get_total_volume() == 110_000_000, 'Wrong total volume');
 }
 
 #[test]
-fn test_anyone_can_execute_batch_with_deposits() {
+#[should_panic(expected: 'Only owner can execute')]
+fn test_non_owner_cannot_execute_batch() {
     let (pool_addr, usdc_addr, wbtc_addr, router_addr, _owner) = setup();
 
     let usdc_mock = IMockERC20Dispatcher { contract_address: usdc_addr };
@@ -258,24 +259,21 @@ fn test_anyone_can_execute_batch_with_deposits() {
     let user1 = addr('user1');
     let anyone = addr('anyone');
 
-    usdc_mock.mint(user1, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(commitment, 1, 0);
     stop_cheat_caller_address(pool_addr);
 
-    // Anyone (not owner) can execute when deposits exist
+    // Non-owner cannot execute batch (owner-only protection)
     start_cheat_caller_address(pool_addr, anyone);
     pool.execute_batch(0, array![]);
-    stop_cheat_caller_address(pool_addr);
-
-    assert(pool.get_total_batches_executed() == 1, 'Batch should execute');
 }
 
 #[test]
@@ -298,16 +296,16 @@ fn test_duplicate_commitment_rejected() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    let commitment = compute_commitment(1_000_000_000, 0xDEAD, 0xBEEF);
+    let commitment = compute_commitment(10_000_000, 0xDEAD, 0xBEEF);
 
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, user1);
-    pool.deposit(commitment, 1, 0); // 1_000_000_000 USDC
+    pool.deposit(commitment, 1, 0); // 10_000_000 USDC
     pool.deposit(commitment, 1, 0); // Same commitment — should panic
 }
 
@@ -321,10 +319,10 @@ fn test_invalid_denomination_rejected() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, user1);
@@ -336,9 +334,9 @@ fn test_denomination_amounts() {
     let (pool_addr, _, _, _, _) = setup();
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
-    assert(pool.get_denomination_amount(0) == 100_000_000, 'Tier 0 wrong');
-    assert(pool.get_denomination_amount(1) == 1_000_000_000, 'Tier 1 wrong');
-    assert(pool.get_denomination_amount(2) == 10_000_000_000, 'Tier 2 wrong');
+    assert(pool.get_denomination_amount(0) == 1_000_000, 'Tier 0 wrong');
+    assert(pool.get_denomination_amount(1) == 10_000_000, 'Tier 1 wrong');
+    assert(pool.get_denomination_amount(2) == 100_000_000, 'Tier 2 wrong');
     assert(pool.get_denomination_amount(3) == 0, 'Tier 3 should be 0');
 }
 
@@ -351,15 +349,15 @@ fn test_merkle_root_updates_on_deposit() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     let root_before = pool.get_merkle_root();
 
-    let commitment1 = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment1 = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(commitment1, 1, 0);
     stop_cheat_caller_address(pool_addr);
@@ -367,7 +365,7 @@ fn test_merkle_root_updates_on_deposit() {
     let root_after_1 = pool.get_merkle_root();
     assert(root_before != root_after_1, 'Root should change');
 
-    let commitment2 = compute_commitment(1_000_000_000, 0xCCC, 0xDDD);
+    let commitment2 = compute_commitment(10_000_000, 0xCCC, 0xDDD);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(commitment2, 1, 0);
     stop_cheat_caller_address(pool_addr);
@@ -386,12 +384,12 @@ fn test_view_key_registration() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, user1);
@@ -417,15 +415,15 @@ fn test_get_leaf_returns_correct_commitments() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let c0 = compute_commitment(1_000_000_000, 0x111, 0xA01);
-    let c1 = compute_commitment(1_000_000_000, 0x222, 0xA02);
-    let c2 = compute_commitment(1_000_000_000, 0x333, 0xA03);
+    let c0 = compute_commitment(10_000_000, 0x111, 0xA01);
+    let c1 = compute_commitment(10_000_000, 0x222, 0xA02);
+    let c2 = compute_commitment(10_000_000, 0x333, 0xA03);
 
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(c0, 1, 0);
@@ -451,10 +449,10 @@ fn test_anonymity_set_tracking() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     // Initial: all anonymity sets are 0
@@ -462,9 +460,9 @@ fn test_anonymity_set_tracking() {
     assert(pool.get_anonymity_set(1) == 0, 'Tier 1 should be 0');
     assert(pool.get_anonymity_set(2) == 0, 'Tier 2 should be 0');
 
-    // Deposit tier 1 (1_000_000_000 USDC) twice
-    let c1 = compute_commitment(1_000_000_000, 0x111, 0xA01);
-    let c2 = compute_commitment(1_000_000_000, 0x222, 0xA02);
+    // Deposit tier 1 (10_000_000 USDC = $10) twice
+    let c1 = compute_commitment(10_000_000, 0x111, 0xA01);
+    let c2 = compute_commitment(10_000_000, 0x222, 0xA02);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(c1, 1, 0);
     pool.deposit(c2, 1, 0);
@@ -473,8 +471,8 @@ fn test_anonymity_set_tracking() {
     assert(pool.get_anonymity_set(1) == 2, 'Tier 1 should be 2');
     assert(pool.get_anonymity_set(0) == 0, 'Tier 0 still 0');
 
-    // Deposit tier 0 (100_000_000 USDC) once
-    let c3 = compute_commitment(100_000_000, 0x333, 0xA03);
+    // Deposit tier 0 (1_000_000 USDC = $1) once
+    let c3 = compute_commitment(1_000_000, 0x333, 0xA03);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(c3, 0, 0);
     stop_cheat_caller_address(pool_addr);
@@ -482,8 +480,8 @@ fn test_anonymity_set_tracking() {
     assert(pool.get_anonymity_set(0) == 1, 'Tier 0 should be 1');
     assert(pool.get_anonymity_set(1) == 2, 'Tier 1 still 2');
 
-    // Deposit tier 2 (10_000_000_000 USDC) once
-    let c4 = compute_commitment(10_000_000_000, 0x444, 0xA04);
+    // Deposit tier 2 (100_000_000 USDC = $100) once
+    let c4 = compute_commitment(100_000_000, 0x444, 0xA04);
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(c4, 2, 0);
     stop_cheat_caller_address(pool_addr);
@@ -504,13 +502,13 @@ fn test_bitcoin_identity_stored_on_deposit() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let btc_identity: felt252 = 0xB7C1;
 
     let mut spy = spy_events();
@@ -548,13 +546,13 @@ fn test_bitcoin_identity_zero_not_stored() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
 
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(commitment, 1, 0); // No BTC identity
@@ -573,15 +571,15 @@ fn test_btc_linked_count_increments() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user1 = addr('user1');
-    usdc_mock.mint(user1, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user1);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let c1 = compute_commitment(1_000_000_000, 0x111, 0xA01);
-    let c2 = compute_commitment(1_000_000_000, 0x222, 0xA02);
-    let c3 = compute_commitment(1_000_000_000, 0x333, 0xA03);
+    let c1 = compute_commitment(10_000_000, 0x111, 0xA01);
+    let c2 = compute_commitment(10_000_000, 0x222, 0xA02);
+    let c3 = compute_commitment(10_000_000, 0x333, 0xA03);
 
     start_cheat_caller_address(pool_addr, user1);
     pool.deposit(c1, 1, 0xB7C1);  // With BTC

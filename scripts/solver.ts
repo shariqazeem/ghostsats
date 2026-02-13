@@ -44,14 +44,21 @@ import "dotenv/config";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function loadDeploymentAddresses(): Record<string, string> {
+function loadDeploymentManifest(): { network?: string; contracts?: Record<string, string> } {
   try {
     const manifestPath = path.resolve(__dirname, "deployment.json");
     if (fs.existsSync(manifestPath)) {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-      return manifest.contracts ?? {};
+      return JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
     }
   } catch { /* fall through */ }
+  return {};
+}
+
+const deploymentManifest = loadDeploymentManifest();
+const deployedNetwork = deploymentManifest.network ?? "sepolia";
+
+function loadDeploymentAddresses(): Record<string, string> {
+  return deploymentManifest.contracts ?? {}; // already loaded above
   return {};
 }
 
@@ -164,9 +171,10 @@ const STATUS_LABELS: Record<string, string> = {
 async function runSolver(dryRun: boolean): Promise<boolean> {
   const privateKey = process.env.PRIVATE_KEY;
   const accountAddress = process.env.ACCOUNT_ADDRESS;
-  const rpcUrl =
-    process.env.STARKNET_RPC_URL ??
-    "https://starknet-sepolia-rpc.publicnode.com";
+  const defaultRpc = deployedNetwork === "mainnet"
+    ? "https://starknet-mainnet.public.blastapi.io"
+    : "https://starknet-sepolia-rpc.publicnode.com";
+  const rpcUrl = process.env.STARKNET_RPC_URL ?? defaultRpc;
 
   if (!privateKey || !accountAddress) {
     console.error(

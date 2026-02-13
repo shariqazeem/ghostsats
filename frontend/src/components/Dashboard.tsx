@@ -3,13 +3,15 @@
 import { useState, useEffect } from "react";
 import { useReadContract } from "@starknet-react/core";
 import { motion } from "framer-motion";
-import { Activity, Shield, Layers, TrendingUp, Users, Bitcoin, Fingerprint, Zap, ExternalLink } from "lucide-react";
+import { Activity, Shield, Layers, TrendingUp, Users, Bitcoin, Fingerprint, Zap, ExternalLink, Play, Loader, CheckCircle } from "lucide-react";
 import PrivacyScore from "./PrivacyScore";
 import { SkeletonLine } from "./Skeleton";
+import { useToast } from "@/context/ToastContext";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
+import { EXPLORER_CONTRACT, EXPLORER_TX, NETWORK_LABEL } from "@/utils/network";
 
-const VOYAGER_BASE = "https://sepolia.starkscan.co/contract";
+const CONTRACT_EXPLORER = EXPLORER_CONTRACT;
 
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
@@ -132,6 +134,32 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
+  // Batch execution state
+  const [batchExecuting, setBatchExecuting] = useState(false);
+  const [batchTxHash, setBatchTxHash] = useState<string | null>(null);
+  const { toast } = useToast();
+
+  async function handleExecuteBatch() {
+    setBatchExecuting(true);
+    setBatchTxHash(null);
+    try {
+      const res = await fetch(`${RELAYER_URL}/execute-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBatchTxHash(data.txHash);
+        toast("success", "Batch executed — USDC swapped to WBTC");
+      } else {
+        toast("error", data.error ?? "Batch execution failed");
+      }
+    } catch (err) {
+      toast("error", "Failed to connect to relayer");
+    }
+    setBatchExecuting(false);
+  }
+
   const { data: btcLinkedCount } = useReadContract({
     address: poolAddress || undefined,
     abi: SHIELDED_POOL_ABI,
@@ -147,10 +175,10 @@ export default function Dashboard() {
       {/* Hero */}
       <div className="text-center space-y-3">
         <h1 className="text-[24px] sm:text-[32px] font-black tracking-tight text-[var(--text-primary)] leading-tight">
-          Bitcoin&apos;s Privacy Layer
+          Private BTC Accumulation
         </h1>
         <p className="text-[13px] sm:text-[15px] text-[var(--text-secondary)] font-medium">
-          Gasless private execution on Starknet
+          Deposit USDC. Batch swap to BTC. Withdraw privately.
         </p>
         {/* Protocol Status Badges */}
         <div className="flex items-center justify-center gap-2 flex-wrap">
@@ -168,7 +196,7 @@ export default function Dashboard() {
           </span>
           <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[10px] font-medium text-[var(--text-secondary)]">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
-            Sepolia Live
+            {NETWORK_LABEL} Live
           </span>
         </div>
       </div>
@@ -286,7 +314,7 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-1.5">
             <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
-            <span className="text-[11px] text-[var(--text-tertiary)]">Live on Sepolia</span>
+            <span className="text-[11px] text-[var(--text-tertiary)]">Live on {NETWORK_LABEL}</span>
           </div>
         </div>
 
@@ -295,7 +323,7 @@ export default function Dashboard() {
         {/* Verified On-Chain Links */}
         <div className="flex flex-wrap items-center gap-2">
           <a
-            href={`${VOYAGER_BASE}/${addresses.contracts.shieldedPool}`}
+            href={`${CONTRACT_EXPLORER}/${addresses.contracts.shieldedPool}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -306,7 +334,7 @@ export default function Dashboard() {
           </a>
           {(addresses.contracts as Record<string, string>).garagaVerifier && (
             <a
-              href={`${VOYAGER_BASE}/${(addresses.contracts as Record<string, string>).garagaVerifier}`}
+              href={`${CONTRACT_EXPLORER}/${(addresses.contracts as Record<string, string>).garagaVerifier}`}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-950/20 hover:bg-emerald-950/30 border border-emerald-800/20 transition-colors text-[10px] font-medium text-emerald-400"
@@ -317,7 +345,7 @@ export default function Dashboard() {
             </a>
           )}
           <a
-            href={`${VOYAGER_BASE}/${addresses.contracts.usdc}`}
+            href={`${CONTRACT_EXPLORER}/${addresses.contracts.usdc}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -326,7 +354,7 @@ export default function Dashboard() {
             <ExternalLink size={8} strokeWidth={2} className="opacity-50" />
           </a>
           <a
-            href={`${VOYAGER_BASE}/${addresses.contracts.wbtc}`}
+            href={`${CONTRACT_EXPLORER}/${addresses.contracts.wbtc}`}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[var(--bg-tertiary)] hover:bg-[var(--bg-elevated)] border border-[var(--border-subtle)] transition-colors text-[10px] font-medium text-[var(--text-secondary)] hover:text-[var(--text-primary)]"
@@ -337,6 +365,58 @@ export default function Dashboard() {
           </a>
         </div>
       </div>
+
+      {/* Execute Batch Button */}
+      {pending > 0 && (
+        <div className="glass-card p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Play size={12} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
+                  Batch Swap
+                </span>
+              </div>
+              <p className="text-[11px] text-[var(--text-secondary)]">
+                {pending.toLocaleString()} USDC pending — execute batch to swap to WBTC
+              </p>
+            </div>
+            <motion.button
+              onClick={handleExecuteBatch}
+              disabled={batchExecuting || proverStatus !== "online"}
+              className="px-4 py-2.5 bg-[var(--accent-orange)] text-white rounded-xl text-[12px] font-semibold
+                         disabled:opacity-30 disabled:cursor-not-allowed
+                         cursor-pointer flex items-center gap-1.5 flex-shrink-0"
+              whileHover={!batchExecuting ? { y: -1 } : {}}
+              whileTap={!batchExecuting ? { scale: 0.97 } : {}}
+            >
+              {batchExecuting ? (
+                <Loader size={12} className="animate-spin" strokeWidth={2} />
+              ) : (
+                <Play size={12} strokeWidth={2} />
+              )}
+              {batchExecuting ? "Executing..." : "Execute Batch"}
+            </motion.button>
+          </div>
+          {batchTxHash && (
+            <a
+              href={`${EXPLORER_TX}${batchTxHash}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
+            >
+              <CheckCircle size={10} strokeWidth={2} />
+              Batch executed — view on Starkscan
+              <ExternalLink size={10} strokeWidth={1.5} className="opacity-60" />
+            </a>
+          )}
+          {proverStatus !== "online" && (
+            <p className="text-[10px] text-[var(--text-tertiary)] mt-2">
+              Relayer must be online to execute batches (owner-only operation)
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Anonymity Sets — Animated Bars */}
       <div className="glass-card p-6">
@@ -353,9 +433,9 @@ export default function Dashboard() {
         </div>
         <div className="space-y-4">
           {[
-            { label: "100", unit: "USDC", count: anon0 },
-            { label: "1K", unit: "USDC", count: anon1 },
-            { label: "10K", unit: "USDC", count: anon2 },
+            { label: "$1", unit: "USDC", count: anon0 },
+            { label: "$10", unit: "USDC", count: anon1 },
+            { label: "$100", unit: "USDC", count: anon2 },
           ].map(({ label, unit, count }) => {
             const pct = Math.min(count / 20, 1) * 100;
             const color = count >= 10 ? "#10B981" : count >= 3 ? "#F59E0B" : "#EF4444";

@@ -14,6 +14,7 @@ import {
 } from "@/utils/notesManager";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
+import { EXPLORER_TX, RPC_URL } from "@/utils/network";
 import { CallData, RpcProvider, Contract, type Abi, num } from "starknet";
 
 type WithdrawMode = "wbtc" | "btc_intent";
@@ -27,7 +28,7 @@ interface ProofDetails {
 }
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
-const SEPOLIA_EXPLORER = "https://sepolia.starkscan.co/tx/";
+const TX_EXPLORER = EXPLORER_TX;
 const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 const GARAGA_VERIFIER = "0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07";
 
@@ -245,7 +246,7 @@ export default function UnveilForm() {
     let cancelled = false;
 
     async function pollIntent() {
-      const rpc = new RpcProvider({ nodeUrl: "https://starknet-sepolia-rpc.publicnode.com" });
+      const rpc = new RpcProvider({ nodeUrl: RPC_URL });
       const pool = new Contract({ abi: SHIELDED_POOL_ABI as unknown as Abi, address: poolAddress, providerOrAccount: rpc });
 
       while (!cancelled) {
@@ -283,7 +284,7 @@ export default function UnveilForm() {
       setClaimPhase("building_proof");
 
       const rpc = new RpcProvider({
-        nodeUrl: "https://starknet-sepolia-rpc.publicnode.com",
+        nodeUrl: RPC_URL,
       });
       const pool = new Contract({ abi: SHIELDED_POOL_ABI as unknown as Abi, address: poolAddress, providerOrAccount: rpc });
       const onChainLeafCount = Number(await pool.call("get_leaf_count", []));
@@ -622,7 +623,7 @@ export default function UnveilForm() {
           )}
           {claimTxHash && (
             <a
-              href={`${SEPOLIA_EXPLORER}${claimTxHash}`}
+              href={`${TX_EXPLORER}${claimTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
               className="flex items-center gap-1.5 text-xs text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"

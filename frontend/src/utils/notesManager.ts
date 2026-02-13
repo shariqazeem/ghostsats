@@ -9,6 +9,7 @@ import type { GhostNote } from "./privacy";
 import { loadNotes, loadNotesEncrypted } from "./privacy";
 import { RpcProvider, Contract, type Abi } from "starknet";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
+import { RPC_URL } from "@/utils/network";
 import addresses from "@/contracts/addresses.json";
 
 /** Retry an async function with exponential backoff. */
@@ -52,7 +53,7 @@ export async function checkNoteStatus(
     const rpc =
       provider ??
       new RpcProvider({
-        nodeUrl: "https://starknet-sepolia-rpc.publicnode.com",
+        nodeUrl: RPC_URL,
       });
 
     const pool = new Contract({

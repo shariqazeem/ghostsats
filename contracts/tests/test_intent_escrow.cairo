@@ -148,12 +148,12 @@ fn setup_intent(
     let wbtc_mock = IMockERC20Dispatcher { contract_address: wbtc_addr };
 
     let depositor = addr('depositor');
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let commitment = compute_commitment(amount, 0xA1A1, 0xA1A2);
     let zk_commitment: felt252 = 0xFAC1;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit_private(pool_addr, usdc_addr, depositor, commitment, 1, amount, zk_commitment);
     do_execute_batch(pool_addr, owner);
@@ -186,14 +186,14 @@ fn test_withdraw_with_btc_intent_creates_lock() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xE1E1;
     let blinder: felt252 = 0xE1E2;
     let commitment = compute_commitment(amount, secret, blinder);
     let zk_commitment: felt252 = 0xFA01;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit_private(pool_addr, usdc_addr, depositor, commitment, 1, amount, zk_commitment);
     do_execute_batch(pool_addr, owner);
@@ -212,12 +212,12 @@ fn test_withdraw_with_btc_intent_creates_lock() {
 
     // WBTC should still be in the pool (escrowed), NOT sent to recipient
     assert(wbtc.balance_of(recipient) == 0, 'Recipient should get 0');
-    assert(wbtc.balance_of(pool_addr) == 1_000_000_000, 'Pool should hold WBTC');
+    assert(wbtc.balance_of(pool_addr) == 10_000_000, 'Pool should hold WBTC');
 
     // Intent created
     assert(pool.get_intent_count() == 1, 'Intent count wrong');
     let intent = pool.get_intent(0);
-    assert(intent.amount == 1_000_000_000, 'Intent amount wrong');
+    assert(intent.amount == 10_000_000, 'Intent amount wrong');
     assert(intent.btc_address_hash == btc_addr_hash, 'BTC hash wrong');
     assert(intent.recipient == recipient, 'Recipient wrong');
     assert(intent.status == 0, 'Status should be CREATED');
@@ -230,7 +230,7 @@ fn test_withdraw_with_btc_intent_creates_lock() {
                     ShieldedPool::IntentCreated {
                         intent_id: 0,
                         btc_address_hash: btc_addr_hash,
-                        amount: 1_000_000_000,
+                        amount: 10_000_000,
                         recipient,
                         timestamp: 100,
                     },
@@ -287,7 +287,7 @@ fn test_confirm_and_release_to_solver() {
     pool.confirm_btc_payment(0);
     stop_cheat_caller_address(pool_addr);
 
-    assert(wbtc.balance_of(solver) == 1_000_000_000, 'Solver should have WBTC');
+    assert(wbtc.balance_of(solver) == 10_000_000, 'Solver should have WBTC');
     assert(wbtc.balance_of(pool_addr) == 0, 'Pool should be empty');
 
     let intent = pool.get_intent(0);
@@ -301,7 +301,7 @@ fn test_confirm_and_release_to_solver() {
                     ShieldedPool::IntentSettled {
                         intent_id: 0,
                         solver,
-                        amount: 1_000_000_000,
+                        amount: 10_000_000,
                     },
                 ),
             ),
@@ -323,7 +323,7 @@ fn test_expire_intent_refunds_recipient() {
 
     pool.expire_intent(0);
 
-    assert(wbtc.balance_of(recipient) == 1_000_000_000, 'Recipient should get refund');
+    assert(wbtc.balance_of(recipient) == 10_000_000, 'Recipient should get refund');
     assert(wbtc.balance_of(pool_addr) == 0, 'Pool should be empty');
 
     let intent = pool.get_intent(0);
@@ -410,6 +410,49 @@ fn test_oracle_config_update() {
     assert(pool.is_oracle(oracle2), 'Oracle 2 not set');
 }
 
+// ========================================
+// Security: Oracle Revocation Tests
+// ========================================
+
+#[test]
+fn test_oracle_revocation_on_reconfig() {
+    let (pool_addr, _, _, _, owner) = setup();
+    let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
+
+    // Owner is default oracle
+    assert(pool.is_oracle(owner), 'Owner should be oracle');
+
+    let oracle1 = addr('oracle1');
+    let oracle2 = addr('oracle2');
+
+    // Reconfig: replace owner with oracle1 + oracle2
+    start_cheat_caller_address(pool_addr, owner);
+    pool.set_oracle_config(array![oracle1, oracle2], 2, 7200);
+    stop_cheat_caller_address(pool_addr);
+
+    // Owner should no longer be an oracle (revoked)
+    assert(!pool.is_oracle(owner), 'Owner should be revoked');
+    assert(pool.is_oracle(oracle1), 'Oracle 1 not set');
+    assert(pool.is_oracle(oracle2), 'Oracle 2 not set');
+}
+
+// ========================================
+// Security: Minimum Timeout Enforcement
+// ========================================
+
+#[test]
+#[should_panic(expected: 'Timeout too short')]
+fn test_min_timeout_enforced() {
+    let (pool_addr, _, _, _, owner) = setup();
+    let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
+
+    let oracle1 = addr('oracle1');
+
+    // Try to set timeout = 0 (should fail, minimum is 600)
+    start_cheat_caller_address(pool_addr, owner);
+    pool.set_oracle_config(array![oracle1], 1, 0);
+}
+
 #[test]
 fn test_full_intent_lifecycle() {
     let (pool_addr, _, wbtc_addr, _, owner) = setup_intent();
@@ -436,7 +479,7 @@ fn test_full_intent_lifecycle() {
     let intent = pool.get_intent(0);
     assert(intent.status == 2, 'Should be SETTLED');
     assert(intent.solver == solver, 'Solver wrong');
-    assert(wbtc.balance_of(solver) == 1_000_000_000, 'Solver WBTC wrong');
+    assert(wbtc.balance_of(solver) == 10_000_000, 'Solver WBTC wrong');
     assert(wbtc.balance_of(pool_addr) == 0, 'Pool not drained');
     assert(wbtc.balance_of(recipient) == 0, 'Recipient should get 0 WBTC');
 }

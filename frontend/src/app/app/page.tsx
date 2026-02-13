@@ -16,10 +16,10 @@ export default function AppPage() {
       </main>
       <footer className="text-center pb-8 sm:pb-10">
         <p className="text-[11px] text-[var(--text-tertiary)] tracking-widest uppercase">
-          GhostSats v1.0 &middot; Starknet Sepolia
+          GhostSats &middot; Private Bitcoin Accumulation Protocol
         </p>
         <p className="text-[10px] text-[var(--text-quaternary)] mt-1">
-          ZK Proofs &middot; Pedersen Commitments &middot; Merkle Proofs &middot; Nullifier Set
+          ZK Proofs &middot; Batch Swaps &middot; Intent Settlement &middot; Starknet
         </p>
       </footer>
     </div>

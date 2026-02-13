@@ -35,10 +35,10 @@ export default function OnboardingBanner() {
           </div>
           <div>
             <h3 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">
-              Welcome to GhostSats
+              Private Bitcoin Accumulation
             </h3>
             <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
-              This is a live testnet demo on Starknet Sepolia. To try the full privacy flow:
+              Live testnet demo on Starknet Sepolia. Try the full accumulation flow:
             </p>
             <div className="space-y-2">
               <div className="flex items-start gap-2.5">
@@ -61,11 +61,11 @@ export default function OnboardingBanner() {
               </div>
               <div className="flex items-start gap-2.5">
                 <span className="text-[10px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">03</span>
-                <span className="text-[11px] text-[var(--text-primary)] font-medium">Mint test USDC in the Shield tab, then deposit</span>
+                <span className="text-[11px] text-[var(--text-primary)] font-medium">Mint test USDC, deposit into the shielded pool</span>
               </div>
               <div className="flex items-start gap-2.5">
                 <span className="text-[10px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">04</span>
-                <span className="text-[11px] text-[var(--text-primary)] font-medium">Unveil with ZK proof — verified on-chain by Garaga</span>
+                <span className="text-[11px] text-[var(--text-primary)] font-medium">Claim BTC with ZK proof — verified on-chain by Garaga</span>
               </div>
             </div>
           </div>

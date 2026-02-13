@@ -5,6 +5,7 @@ import { useWallet } from "@/context/WalletContext";
 import { useEffect, useState, useRef } from "react";
 import { Shield, Bitcoin, X } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { isMainnet } from "@/utils/network";
 
 function truncateAddress(addr: string, chars = 4): string {
   if (addr.length <= chars * 2 + 2) return addr;
@@ -50,7 +51,7 @@ export default function WalletBar() {
         payload: {
           purposes: [AddressPurpose.Payment],
           message: "GhostSats: Verify your Bitcoin identity",
-          network: { type: BitcoinNetworkType.Testnet4 },
+          network: { type: isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet4 },
         },
         onFinish: (response: { addresses: Array<{ purpose: string; address: string; publicKey?: string }> }) => {
           const paymentAddr = response.addresses.find(

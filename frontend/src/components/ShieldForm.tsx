@@ -11,6 +11,7 @@ import { useToast } from "@/context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import addresses from "@/contracts/addresses.json";
 import { SHIELDED_POOL_ABI, ERC20_ABI } from "@/contracts/abi";
+import { EXPLORER_TX, isMainnet, NETWORK_LABEL } from "@/utils/network";
 import { CallData } from "starknet";
 
 type Phase =
@@ -34,7 +35,7 @@ const PHASE_LABELS: Record<Phase, string> = {
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 
-const SEPOLIA_EXPLORER = "https://sepolia.starkscan.co/tx/";
+const TX_EXPLORER = EXPLORER_TX;
 
 export default function ShieldForm() {
   const { address, isConnected } = useAccount();
@@ -219,7 +220,7 @@ export default function ShieldForm() {
       await saveNote(note, address);
 
       setPhase("success");
-      toast("success", "USDC shielded — keeper will batch-swap when threshold met");
+      toast("success", "USDC deposited — batch swap executes when threshold met");
     } catch (err: unknown) {
       setPhase("error");
       const msg = err instanceof Error ? err.message : "Unknown error";
@@ -347,7 +348,7 @@ export default function ShieldForm() {
             {isConnected && balance >= 100 && (
               <div className="flex items-center justify-between px-1">
                 <span className="text-[11px] text-[var(--text-tertiary)]">
-                  {isLiveMode ? "Sepolia USDC Balance" : "Test USDC Balance"}
+                  {isLiveMode ? `${NETWORK_LABEL} USDC Balance` : "Test USDC Balance"}
                 </span>
                 <span className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
                   {balance.toLocaleString()} USDC
@@ -482,7 +483,7 @@ export default function ShieldForm() {
               </div>
               {txHash && (
                 <a
-                  href={`${SEPOLIA_EXPLORER}${txHash}`}
+                  href={`${TX_EXPLORER}${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--accent-orange)] hover:underline font-[family-name:var(--font-geist-mono)]"

@@ -189,15 +189,15 @@ fn test_full_flow_deposit_execute_withdraw_with_merkle_proof() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    // Note: denomination 1 = 1_000_000_000 USDC (1000 USDC with 6 decimals)
-    let amount: u256 = 1_000_000_000;
+    // Note: denomination 1 = 10_000_000 USDC ($10 USDC with 6 decimals)
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0x5EC1;
     let blinder: felt252 = 0xB11D;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     // Deposit
     do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
@@ -217,7 +217,7 @@ fn test_full_flow_deposit_execute_withdraw_with_merkle_proof() {
     pool.withdraw(1, secret, blinder, nullifier, merkle_path, path_indices, recipient, 0);
 
     // Verify
-    assert(wbtc.balance_of(recipient) == 1_000_000_000, 'Recipient wrong WBTC');
+    assert(wbtc.balance_of(recipient) == 10_000_000, 'Recipient wrong WBTC');
     assert(wbtc.balance_of(pool_addr) == 0, 'Pool should be empty');
     assert(pool.is_nullifier_spent(nullifier), 'Nullifier not marked');
 
@@ -229,7 +229,7 @@ fn test_full_flow_deposit_execute_withdraw_with_merkle_proof() {
                     ShieldedPool::Withdrawal {
                         nullifier,
                         recipient,
-                        wbtc_amount: 1_000_000_000,
+                        wbtc_amount: 10_000_000,
                         batch_id: 0,
                     },
                 ),
@@ -252,8 +252,8 @@ fn test_two_users_withdraw_with_merkle_proofs() {
     let recip1 = addr('recip1');
     let recip2 = addr('recip2');
 
-    // Both deposit same denomination (1_000_000_000 USDC each)
-    let amount: u256 = 1_000_000_000;
+    // Both deposit same denomination (10_000_000 USDC = $10 each)
+    let amount: u256 = 10_000_000;
     let secret1: felt252 = 0xAAA;
     let blinder1: felt252 = 0xBBB;
     let commitment1 = compute_commitment(amount, secret1, blinder1);
@@ -262,9 +262,9 @@ fn test_two_users_withdraw_with_merkle_proofs() {
     let blinder2: felt252 = 0xDDD;
     let commitment2 = compute_commitment(amount, secret2, blinder2);
 
-    usdc_mock.mint(user1, 100_000_000_000);
-    usdc_mock.mint(user2, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user1, 1_000_000_000);
+    usdc_mock.mint(user2, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, user1, commitment1, 1, amount);
     do_deposit(pool_addr, usdc_addr, user2, commitment2, 1, amount);
@@ -276,13 +276,13 @@ fn test_two_users_withdraw_with_merkle_proofs() {
     let nullifier1 = compute_nullifier(secret1);
     let (path1, indices1) = build_two_leaf_proof_for_index(commitment1, commitment2, 0);
     pool.withdraw(1, secret1, blinder1, nullifier1, path1, indices1, recip1, 0);
-    assert(wbtc.balance_of(recip1) == 1_000_000_000, 'User1 wrong share');
+    assert(wbtc.balance_of(recip1) == 10_000_000, 'User1 wrong share');
 
     // User 2 withdraws with Merkle proof for leaf index 1
     let nullifier2 = compute_nullifier(secret2);
     let (path2, indices2) = build_two_leaf_proof_for_index(commitment1, commitment2, 1);
     pool.withdraw(1, secret2, blinder2, nullifier2, path2, indices2, recip2, 0);
-    assert(wbtc.balance_of(recip2) == 1_000_000_000, 'User2 wrong share');
+    assert(wbtc.balance_of(recip2) == 10_000_000, 'User2 wrong share');
 
     assert(wbtc.balance_of(pool_addr) == 0, 'Pool not fully drained');
 }
@@ -304,27 +304,27 @@ fn test_withdrawal_with_exchange_rate() {
     let user = addr('user');
     let recipient = addr('recipient');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xFFF;
     let blinder: felt252 = 0xEEE;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(user, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, user, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
     start_cheat_block_timestamp_global(100);
 
     let result = pool.get_batch_result(0);
-    assert(result.total_usdc_in == 1_000_000_000, 'Wrong batch USDC');
-    assert(result.total_wbtc_out == 2_000_000_000, 'Wrong batch WBTC');
+    assert(result.total_usdc_in == 10_000_000, 'Wrong batch USDC');
+    assert(result.total_wbtc_out == 20_000_000, 'Wrong batch WBTC');
 
-    // Withdraw: share = (1_000_000_000 * 2_000_000_000) / 1_000_000_000 = 2_000_000_000 WBTC
+    // Withdraw: share = (10_000_000 * 20_000_000) / 10_000_000 = 20_000_000 WBTC
     let (merkle_path, path_indices) = build_single_leaf_proof();
     pool.withdraw(1, secret, blinder, nullifier, merkle_path, path_indices, recipient, 0);
-    assert(wbtc.balance_of(recipient) == 2_000_000_000, 'Wrong WBTC with 2x rate');
+    assert(wbtc.balance_of(recipient) == 20_000_000, 'Wrong WBTC with 2x rate');
 }
 
 #[test]
@@ -339,14 +339,14 @@ fn test_double_withdrawal_rejected() {
     let user = addr('user');
     let recipient = addr('recipient');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0x123;
     let blinder: felt252 = 0x456;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(user, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, user, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -372,13 +372,13 @@ fn test_invalid_preimage_rejected() {
     let user = addr('user');
     let recipient = addr('recipient');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0x214E;
     let blinder: felt252 = 0xB11D;
     let commitment = compute_commitment(amount, secret, blinder);
 
-    usdc_mock.mint(user, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, user, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -402,13 +402,13 @@ fn test_cannot_withdraw_before_batch_finalized() {
     let user = addr('user');
     let recipient = addr('recipient');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xABC;
     let blinder: felt252 = 0xDEF;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(user, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, user, commitment, 1, amount);
 
@@ -428,13 +428,13 @@ fn test_wrong_nullifier_rejected() {
     let user = addr('user');
     let recipient = addr('recipient');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xABC;
     let blinder: felt252 = 0xDEF;
     let commitment = compute_commitment(amount, secret, blinder);
 
-    usdc_mock.mint(user, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, user, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -463,14 +463,14 @@ fn test_relayer_withdrawal_with_fee() {
     let recipient = addr('recipient');
     let relayer = addr('relayer');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xA1B1;
     let blinder: felt252 = 0xA1B2;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -484,10 +484,10 @@ fn test_relayer_withdrawal_with_fee() {
         recipient, relayer, 200, 0,
     );
 
-    // Relayer gets 2% of 1_000_000_000 = 20_000_000
-    assert(wbtc.balance_of(relayer) == 20_000_000, 'Relayer wrong fee');
-    // Recipient gets 1_000_000_000 - 20_000_000 = 980_000_000
-    assert(wbtc.balance_of(recipient) == 980_000_000, 'Recipient wrong amount');
+    // Relayer gets 2% of 10_000_000 = 200_000
+    assert(wbtc.balance_of(relayer) == 200_000, 'Relayer wrong fee');
+    // Recipient gets 10_000_000 - 200_000 = 9_800_000
+    assert(wbtc.balance_of(recipient) == 9_800_000, 'Recipient wrong amount');
     assert(pool.is_nullifier_spent(nullifier), 'Nullifier not spent');
 }
 
@@ -504,14 +504,14 @@ fn test_relayer_withdrawal_zero_fee() {
     let recipient = addr('recipient2');
     let relayer = addr('relayer2');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xA1B3;
     let blinder: felt252 = 0xA1B4;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -526,7 +526,7 @@ fn test_relayer_withdrawal_zero_fee() {
     );
 
     assert(wbtc.balance_of(relayer) == 0, 'Relayer should get nothing');
-    assert(wbtc.balance_of(recipient) == 1_000_000_000, 'Recipient wrong amount');
+    assert(wbtc.balance_of(recipient) == 10_000_000, 'Recipient wrong amount');
 }
 
 #[test]
@@ -542,14 +542,14 @@ fn test_excessive_relayer_fee_rejected() {
     let recipient = addr('recipient3');
     let relayer = addr('relayer3');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xA1B5;
     let blinder: felt252 = 0xA1B6;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -580,14 +580,14 @@ fn test_withdrawal_too_early_rejected() {
     let depositor = addr('depositor4');
     let recipient = addr('recipient4');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xD1E1;
     let blinder: felt252 = 0xD1E2;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -617,7 +617,7 @@ fn test_max_relayer_fee_view() {
 // ========================================
 
 #[test]
-fn test_withdrawal_with_btc_intent_event() {
+fn test_withdrawal_with_btc_intent_creates_escrow() {
     let (pool_addr, usdc_addr, wbtc_addr, router_addr, owner) = setup();
 
     let usdc_mock = IMockERC20Dispatcher { contract_address: usdc_addr };
@@ -628,14 +628,14 @@ fn test_withdrawal_with_btc_intent_event() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xBB01;
     let blinder: felt252 = 0xBB02;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -648,17 +648,29 @@ fn test_withdrawal_with_btc_intent_event() {
 
     pool.withdraw(1, secret, blinder, nullifier, merkle_path, path_indices, recipient, btc_dest);
 
-    assert(wbtc.balance_of(recipient) == 1_000_000_000, 'Recipient wrong WBTC');
+    // WBTC should be locked in pool (escrowed), NOT sent to recipient
+    assert(wbtc.balance_of(recipient) == 0, 'Recipient should get 0');
+    assert(wbtc.balance_of(pool_addr) == 10_000_000, 'Pool should hold WBTC');
+
+    // Intent escrow created
+    assert(pool.get_intent_count() == 1, 'Intent count wrong');
+    let intent = pool.get_intent(0);
+    assert(intent.amount == 10_000_000, 'Intent amount wrong');
+    assert(intent.btc_address_hash == btc_dest, 'BTC hash wrong');
+    assert(intent.recipient == recipient, 'Recipient wrong');
+    assert(intent.status == 0, 'Status should be CREATED');
 
     spy.assert_emitted(
         @array![
             (
                 pool_addr,
-                ShieldedPool::Event::BitcoinWithdrawalIntent(
-                    ShieldedPool::BitcoinWithdrawalIntent {
-                        nullifier,
-                        btc_recipient_hash: btc_dest,
-                        wbtc_amount: 1_000_000_000,
+                ShieldedPool::Event::IntentCreated(
+                    ShieldedPool::IntentCreated {
+                        intent_id: 0,
+                        btc_address_hash: btc_dest,
+                        amount: 10_000_000,
+                        recipient,
+                        timestamp: 100,
                     },
                 ),
             ),
@@ -666,8 +678,50 @@ fn test_withdrawal_with_btc_intent_event() {
     );
 }
 
+// ========================================
+// Security: Merkle Proof Length Validation
+// ========================================
+
 #[test]
-fn test_relayer_withdrawal_with_btc_intent() {
+#[should_panic(expected: 'Invalid proof length')]
+fn test_merkle_proof_wrong_length_rejected() {
+    let (pool_addr, usdc_addr, wbtc_addr, router_addr, owner) = setup();
+
+    let usdc_mock = IMockERC20Dispatcher { contract_address: usdc_addr };
+    let wbtc_mock = IMockERC20Dispatcher { contract_address: wbtc_addr };
+    let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
+
+    let depositor = addr('depositor');
+    let recipient = addr('recipient');
+
+    let amount: u256 = 10_000_000;
+    let secret: felt252 = 0xF1F1;
+    let blinder: felt252 = 0xF1F2;
+    let commitment = compute_commitment(amount, secret, blinder);
+    let nullifier = compute_nullifier(secret);
+
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
+
+    do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
+    do_execute_batch(pool_addr, owner);
+    start_cheat_block_timestamp_global(100);
+
+    // Build a short proof (only 5 levels instead of 20) — should be rejected
+    let mut short_path: Array<felt252> = array![];
+    let mut short_indices: Array<u8> = array![];
+    let mut i: u32 = 0;
+    while i < 5 {
+        short_path.append(get_zero_hash(i));
+        short_indices.append(0);
+        i += 1;
+    };
+
+    pool.withdraw(1, secret, blinder, nullifier, short_path, short_indices, recipient, 0);
+}
+
+#[test]
+fn test_relayer_withdrawal_with_btc_intent_creates_escrow() {
     let (pool_addr, usdc_addr, wbtc_addr, router_addr, owner) = setup();
 
     let usdc_mock = IMockERC20Dispatcher { contract_address: usdc_addr };
@@ -679,14 +733,14 @@ fn test_relayer_withdrawal_with_btc_intent() {
     let recipient = addr('recipient');
     let relayer = addr('relayer');
 
-    let amount: u256 = 1_000_000_000;
+    let amount: u256 = 10_000_000;
     let secret: felt252 = 0xCC01;
     let blinder: felt252 = 0xCC02;
     let commitment = compute_commitment(amount, secret, blinder);
     let nullifier = compute_nullifier(secret);
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     do_deposit(pool_addr, usdc_addr, depositor, commitment, 1, amount);
     do_execute_batch(pool_addr, owner);
@@ -697,25 +751,38 @@ fn test_relayer_withdrawal_with_btc_intent() {
 
     let mut spy = spy_events();
 
-    // 200 bps (2%) fee: recipient gets 980_000_000
+    // 200 bps (2%) fee with BTC bridge
     pool.withdraw_via_relayer(
         1, secret, blinder, nullifier, merkle_path, path_indices,
         recipient, relayer, 200, btc_dest,
     );
 
-    assert(wbtc.balance_of(recipient) == 980_000_000, 'Recipient wrong amount');
-    assert(wbtc.balance_of(relayer) == 20_000_000, 'Relayer wrong fee');
+    // Relayer still gets their fee (paid from pool WBTC)
+    assert(wbtc.balance_of(relayer) == 200_000, 'Relayer wrong fee');
+    // Recipient gets 0 — remainder locked in escrow
+    assert(wbtc.balance_of(recipient) == 0, 'Recipient should get 0');
+    // Pool holds escrowed remainder (10M - 200K = 9.8M)
+    assert(wbtc.balance_of(pool_addr) == 9_800_000, 'Pool should hold escrow');
 
-    // BTC intent should use recipient_amount (after fee), not full share
+    // Intent escrow created with post-fee amount
+    assert(pool.get_intent_count() == 1, 'Intent count wrong');
+    let intent = pool.get_intent(0);
+    assert(intent.amount == 9_800_000, 'Intent amount wrong');
+    assert(intent.btc_address_hash == btc_dest, 'BTC hash wrong');
+    assert(intent.recipient == recipient, 'Recipient wrong');
+    assert(intent.status == 0, 'Status should be CREATED');
+
     spy.assert_emitted(
         @array![
             (
                 pool_addr,
-                ShieldedPool::Event::BitcoinWithdrawalIntent(
-                    ShieldedPool::BitcoinWithdrawalIntent {
-                        nullifier,
-                        btc_recipient_hash: btc_dest,
-                        wbtc_amount: 980_000_000,
+                ShieldedPool::Event::IntentCreated(
+                    ShieldedPool::IntentCreated {
+                        intent_id: 0,
+                        btc_address_hash: btc_dest,
+                        amount: 9_800_000,
+                        recipient,
+                        timestamp: 100,
                     },
                 ),
             ),

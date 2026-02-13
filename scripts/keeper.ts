@@ -35,18 +35,24 @@ import "dotenv/config";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-function loadDeploymentAddresses(): Record<string, string> {
+interface DeploymentManifest {
+  network?: string;
+  contracts?: Record<string, string>;
+}
+
+function loadDeploymentManifest(): DeploymentManifest {
   try {
     const manifestPath = path.resolve(__dirname, "deployment.json");
     if (fs.existsSync(manifestPath)) {
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
-      return manifest.contracts ?? {};
+      return JSON.parse(fs.readFileSync(manifestPath, "utf-8"));
     }
-  } catch { /* fall through to env vars */ }
+  } catch { /* fall through to defaults */ }
   return {};
 }
 
-const deployedAddresses = loadDeploymentAddresses();
+const deploymentManifest = loadDeploymentManifest();
+const deployedAddresses = deploymentManifest.contracts ?? {};
+const deployedNetwork = deploymentManifest.network ?? "sepolia";
 
 const POOL_ADDRESS =
   process.env.POOL_ADDRESS ??
@@ -69,17 +75,21 @@ const ROUTER_ADDRESS =
   "0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647";
 
 const AVNU_API_BASE =
-  process.env.AVNU_API_BASE ?? "https://sepolia.api.avnu.fi";
+  process.env.AVNU_API_BASE ??
+  (deployedNetwork === "mainnet"
+    ? "https://starknet.api.avnu.fi"
+    : "https://sepolia.api.avnu.fi");
 
 // Minimum pending USDC before triggering a batch (in 6-decimal token units)
-// 100 USDC = 100_000_000 (6 decimals)
-const MIN_PENDING = BigInt(process.env.MIN_PENDING ?? "100000000");
+// Mainnet: $1 minimum (real liquidity), Testnet: $10 minimum (mock tokens are free)
+const DEFAULT_MIN_PENDING = deployedNetwork === "mainnet" ? "1000000" : "10000000";
+const MIN_PENDING = BigInt(process.env.MIN_PENDING ?? DEFAULT_MIN_PENDING);
 
 // Loop interval in milliseconds (5 minutes)
 const LOOP_INTERVAL_MS = 5 * 60 * 1000;
 
-// Slippage tolerance (5% for testnet)
-const SLIPPAGE_BPS = 500;
+// Slippage tolerance: 1% for mainnet, 5% for testnet
+const SLIPPAGE_BPS = deployedNetwork === "mainnet" ? 100 : 500;
 
 // ---------------------------------------------------------------------------
 // ABI (minimal — only the functions the keeper needs)
@@ -253,9 +263,10 @@ function buildOnChainRoutes(quote: AvnuQuote): object[] {
 async function runKeeper(dryRun: boolean): Promise<boolean> {
   const privateKey = process.env.PRIVATE_KEY;
   const accountAddress = process.env.ACCOUNT_ADDRESS;
-  const rpcUrl =
-    process.env.STARKNET_RPC_URL ??
-    "https://starknet-sepolia-rpc.publicnode.com";
+  const defaultRpc = deployedNetwork === "mainnet"
+    ? "https://starknet-mainnet.public.blastapi.io"
+    : "https://starknet-sepolia-rpc.publicnode.com";
+  const rpcUrl = process.env.STARKNET_RPC_URL ?? defaultRpc;
 
   if (!privateKey || !accountAddress) {
     console.error(

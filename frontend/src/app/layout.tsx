@@ -16,22 +16,22 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "GhostSats | Bitcoin's Privacy Layer on Starknet",
-  description: "Private USDC-to-WBTC execution with real on-chain ZK proof verification via Garaga. Noir circuits, Pedersen commitments, gasless relayer. Secrets never touch calldata.",
+  title: "GhostSats | Private Bitcoin Accumulation Protocol",
+  description: "Accumulate BTC without revealing your position. Shielded pool on Starknet with real on-chain ZK proof verification via Garaga. Noir circuits, Pedersen commitments, intent-based BTC settlement.",
   metadataBase: new URL("https://ghostsats.vercel.app"),
   icons: {
     icon: "/icon.svg",
   },
   openGraph: {
-    title: "GhostSats | Bitcoin's Privacy Layer on Starknet",
-    description: "Private USDC-to-WBTC execution with real on-chain ZK proof verification via Garaga. Noir circuits, Pedersen commitments, gasless relayer.",
+    title: "GhostSats | Private Bitcoin Accumulation Protocol",
+    description: "Accumulate BTC without revealing your position. Shielded pool on Starknet with real on-chain ZK proof verification via Garaga.",
     siteName: "GhostSats",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "GhostSats | Bitcoin's Privacy Layer on Starknet",
-    description: "Real ZK proofs verified on-chain. Private USDC-to-WBTC execution on Starknet.",
+    title: "GhostSats | Private Bitcoin Accumulation Protocol",
+    description: "Accumulate BTC privately. On-chain ZK proofs, batch swaps, intent-based BTC settlement on Starknet.",
   },
 };
 

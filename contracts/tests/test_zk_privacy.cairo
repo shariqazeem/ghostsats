@@ -131,13 +131,13 @@ fn test_deposit_private_stores_zk_mapping() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user = addr('user');
-    usdc_mock.mint(user, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C01;
 
     start_cheat_caller_address(pool_addr, user);
@@ -148,7 +148,7 @@ fn test_deposit_private_stores_zk_mapping() {
     assert(pool.get_zk_commitment_mapping(zk_commitment) == commitment, 'ZK mapping wrong');
     assert(pool.is_commitment_valid(commitment), 'Commitment not stored');
     assert(pool.get_leaf_count() == 1, 'Leaf not added');
-    assert(pool.get_pending_usdc() == 1_000_000_000, 'USDC not accumulated');
+    assert(pool.get_pending_usdc() == 10_000_000, 'USDC not accumulated');
 }
 
 #[test]
@@ -164,16 +164,16 @@ fn test_withdraw_private_full_flow() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C02;
     let zk_nullifier: felt252 = 0x40110A;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     // Deposit private
     start_cheat_caller_address(usdc_addr, depositor);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, depositor);
@@ -197,7 +197,7 @@ fn test_withdraw_private_full_flow() {
     );
 
     // Verify withdrawal
-    assert(wbtc.balance_of(recipient) == 1_000_000_000, 'Recipient wrong WBTC');
+    assert(wbtc.balance_of(recipient) == 10_000_000, 'Recipient wrong WBTC');
     assert(pool.is_zk_nullifier_spent(zk_nullifier), 'ZK nullifier not spent');
 
     // Verify PrivateWithdrawal event
@@ -209,7 +209,7 @@ fn test_withdraw_private_full_flow() {
                     ShieldedPool::PrivateWithdrawal {
                         zk_nullifier,
                         recipient,
-                        wbtc_amount: 1_000_000_000,
+                        wbtc_amount: 10_000_000,
                         batch_id: 0,
                     },
                 ),
@@ -231,15 +231,15 @@ fn test_zk_double_spend_rejected() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C03;
     let zk_nullifier: felt252 = 0x40110B;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, depositor);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, depositor);
@@ -270,14 +270,14 @@ fn test_wrong_zk_commitment_rejected() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C04;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, depositor);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, depositor);
@@ -306,14 +306,14 @@ fn test_zk_withdrawal_timing_delay_enforced() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C05;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, depositor);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, depositor);
@@ -341,15 +341,15 @@ fn test_zk_relayer_fee_calculation() {
     let recipient = addr('recipient');
     let relayer = addr('relayer');
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C06;
     let zk_nullifier: felt252 = 0x40110E;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, depositor);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, depositor);
@@ -367,9 +367,9 @@ fn test_zk_relayer_fee_calculation() {
         merkle_path, path_indices, recipient, relayer, 200, 0,
     );
 
-    // Relayer gets 2% of 1_000_000_000 = 20_000_000
-    assert(wbtc.balance_of(relayer) == 20_000_000, 'Relayer wrong fee');
-    assert(wbtc.balance_of(recipient) == 980_000_000, 'Recipient wrong amount');
+    // Relayer gets 2% of 10_000_000 = 200_000
+    assert(wbtc.balance_of(relayer) == 200_000, 'Relayer wrong fee');
+    assert(wbtc.balance_of(recipient) == 9_800_000, 'Recipient wrong amount');
     assert(pool.is_zk_nullifier_spent(zk_nullifier), 'ZK nullifier not spent');
 }
 
@@ -388,15 +388,15 @@ fn test_backward_compat_old_withdraw_still_works() {
 
     let secret: felt252 = 0x5EC;
     let blinder: felt252 = 0xB14;
-    let commitment = compute_commitment(1_000_000_000, secret, blinder);
+    let commitment = compute_commitment(10_000_000, secret, blinder);
     let nullifier = PedersenTrait::new(0).update(secret).update(1).finalize();
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     // Use OLD deposit (not deposit_private)
     start_cheat_caller_address(usdc_addr, depositor);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, depositor);
@@ -410,7 +410,7 @@ fn test_backward_compat_old_withdraw_still_works() {
 
     // Use OLD withdraw
     pool.withdraw(1, secret, blinder, nullifier, merkle_path, path_indices, recipient, 0);
-    assert(wbtc.balance_of(recipient) == 1_000_000_000, 'Old withdraw broken');
+    assert(wbtc.balance_of(recipient) == 10_000_000, 'Old withdraw broken');
 }
 
 #[test]
@@ -423,14 +423,14 @@ fn test_duplicate_zk_commitment_rejected() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user = addr('user');
-    usdc_mock.mint(user, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user);
-    usdc.approve(pool_addr, 100_000_000_000);
+    usdc.approve(pool_addr, 1_000_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let c1 = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
-    let c2 = compute_commitment(1_000_000_000, 0xCCC, 0xDDD);
+    let c1 = compute_commitment(10_000_000, 0xAAA, 0xBBB);
+    let c2 = compute_commitment(10_000_000, 0xCCC, 0xDDD);
     let same_zk: felt252 = 0x2CD0;
 
     start_cheat_caller_address(pool_addr, user);
@@ -447,13 +447,13 @@ fn test_deposit_private_with_btc_identity() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user = addr('user');
-    usdc_mock.mint(user, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C07;
     let btc_identity: felt252 = 0xB7C1;
 
@@ -492,20 +492,20 @@ fn test_zero_zk_commitment_rejected() {
     let pool = IShieldedPoolDispatcher { contract_address: pool_addr };
 
     let user = addr('user');
-    usdc_mock.mint(user, 100_000_000_000);
+    usdc_mock.mint(user, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, user);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
 
     start_cheat_caller_address(pool_addr, user);
     pool.deposit_private(commitment, 1, 0, 0); // Zero ZK commitment — should panic
 }
 
 #[test]
-fn test_zk_withdrawal_with_btc_intent() {
+fn test_zk_withdrawal_with_btc_intent_creates_escrow() {
     let (pool_addr, usdc_addr, wbtc_addr, router_addr, owner) = setup();
 
     let usdc_mock = IMockERC20Dispatcher { contract_address: usdc_addr };
@@ -517,16 +517,16 @@ fn test_zk_withdrawal_with_btc_intent() {
     let depositor = addr('depositor');
     let recipient = addr('recipient');
 
-    let commitment = compute_commitment(1_000_000_000, 0xAAA, 0xBBB);
+    let commitment = compute_commitment(10_000_000, 0xAAA, 0xBBB);
     let zk_commitment: felt252 = 0x2C08;
     let zk_nullifier: felt252 = 0x40110F;
     let btc_dest: felt252 = 0xB7CD;
 
-    usdc_mock.mint(depositor, 100_000_000_000);
-    wbtc_mock.mint(router_addr, 100_000_000_000);
+    usdc_mock.mint(depositor, 1_000_000_000);
+    wbtc_mock.mint(router_addr, 1_000_000_000);
 
     start_cheat_caller_address(usdc_addr, depositor);
-    usdc.approve(pool_addr, 1_000_000_000);
+    usdc.approve(pool_addr, 10_000_000);
     stop_cheat_caller_address(usdc_addr);
 
     start_cheat_caller_address(pool_addr, depositor);
@@ -544,17 +544,29 @@ fn test_zk_withdrawal_with_btc_intent() {
         merkle_path, path_indices, recipient, btc_dest,
     );
 
-    assert(wbtc.balance_of(recipient) == 1_000_000_000, 'Recipient wrong');
+    // WBTC should be locked in pool (escrowed), NOT sent to recipient
+    assert(wbtc.balance_of(recipient) == 0, 'Recipient should get 0');
+    assert(wbtc.balance_of(pool_addr) == 10_000_000, 'Pool should hold WBTC');
+
+    // Intent escrow created
+    assert(pool.get_intent_count() == 1, 'Intent count wrong');
+    let intent = pool.get_intent(0);
+    assert(intent.amount == 10_000_000, 'Intent amount wrong');
+    assert(intent.btc_address_hash == btc_dest, 'BTC hash wrong');
+    assert(intent.recipient == recipient, 'Recipient wrong');
+    assert(intent.status == 0, 'Status should be CREATED');
 
     spy.assert_emitted(
         @array![
             (
                 pool_addr,
-                ShieldedPool::Event::BitcoinWithdrawalIntent(
-                    ShieldedPool::BitcoinWithdrawalIntent {
-                        nullifier: zk_nullifier,
-                        btc_recipient_hash: btc_dest,
-                        wbtc_amount: 1_000_000_000,
+                ShieldedPool::Event::IntentCreated(
+                    ShieldedPool::IntentCreated {
+                        intent_id: 0,
+                        btc_address_hash: btc_dest,
+                        amount: 10_000_000,
+                        recipient,
+                        timestamp: 100,
                     },
                 ),
             ),

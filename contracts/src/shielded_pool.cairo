@@ -304,6 +304,7 @@ pub mod ShieldedPool {
         intent_locks: Map<u64, IntentLock>,
         intent_count: u64,
         oracle_signers: Map<ContractAddress, bool>,
+        oracle_signer_list: Map<u32, ContractAddress>,
         oracle_signer_count: u32,
         oracle_confirmations: Map<u64, Map<ContractAddress, bool>>,
         oracle_confirmation_count: Map<u64, u32>,
@@ -338,6 +339,8 @@ pub mod ShieldedPool {
         IntentConfirmed: IntentConfirmed,
         IntentSettled: IntentSettled,
         IntentExpired: IntentExpired,
+        OracleConfigUpdated: OracleConfigUpdated,
+        ZkVerifierUpdated: ZkVerifierUpdated,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -440,6 +443,19 @@ pub mod ShieldedPool {
         pub refund_recipient: ContractAddress,
     }
 
+    #[derive(Drop, starknet::Event)]
+    pub struct OracleConfigUpdated {
+        pub threshold: u32,
+        pub signer_count: u32,
+        pub timeout: u64,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    pub struct ZkVerifierUpdated {
+        pub old_verifier: ContractAddress,
+        pub new_verifier: ContractAddress,
+    }
+
     // ========================================
     // Constructor
     // ========================================
@@ -453,6 +469,13 @@ pub mod ShieldedPool {
         avnu_router: ContractAddress,
         zk_verifier: ContractAddress,
     ) {
+        // Validate non-zero addresses for critical config
+        let zero_addr: ContractAddress = 0.try_into().unwrap();
+        assert(usdc_token != zero_addr, 'USDC cannot be zero');
+        assert(wbtc_token != zero_addr, 'WBTC cannot be zero');
+        assert(owner != zero_addr, 'Owner cannot be zero');
+        assert(avnu_router != zero_addr, 'Router cannot be zero');
+
         self.usdc_token.write(usdc_token);
         self.wbtc_token.write(wbtc_token);
         self.owner.write(owner);
@@ -464,6 +487,7 @@ pub mod ShieldedPool {
         self.intent_timeout.write(3600);
         // Owner is default oracle signer
         self.oracle_signers.entry(owner).write(true);
+        self.oracle_signer_list.entry(0).write(owner);
         self.oracle_signer_count.write(1);
 
         let empty_root = InternalImpl::compute_empty_root();
@@ -481,6 +505,7 @@ pub mod ShieldedPool {
             let amount = InternalImpl::denomination_to_amount(denomination);
             assert(amount > 0, 'Invalid denomination tier');
             assert(!self.commitments.entry(commitment).read(), 'Commitment already exists');
+            assert(self.leaf_count.read() < 1048576, 'Merkle tree full');
 
             // Transfer USDC into pool
             let usdc = IERC20Dispatcher { contract_address: self.usdc_token.read() };
@@ -539,12 +564,8 @@ pub mod ShieldedPool {
             let pending = self.pending_usdc.read();
             assert(pending > 0, 'Batch is empty');
 
-            // Permissionless when batch meets minimum size; owner-only otherwise
-            let batch_count = self.batch_count.read();
-            if batch_count < MIN_BATCH_SIZE {
-                let caller = get_caller_address();
-                assert(caller == self.owner.read(), 'Only owner can execute');
-            }
+            // Owner-only: prevents sandwich attacks with attacker-controlled routes
+            assert(get_caller_address() == self.owner.read(), 'Only owner can execute');
 
             let pool = get_contract_address();
             let usdc_addr = self.usdc_token.read();
@@ -604,18 +625,15 @@ pub mod ShieldedPool {
                 ref self, denomination, secret, blinder, nullifier, merkle_path, path_indices,
             );
 
-            // Transfer full share to recipient
-            let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
-            let success = wbtc.transfer(recipient, user_share);
-            assert(success, 'WBTC transfer failed');
-
-            self.emit(Withdrawal { nullifier, recipient, wbtc_amount: user_share, batch_id });
-
-            // Emit Bitcoin withdrawal intent for cross-chain bridge
             if btc_recipient_hash != 0 {
-                self.emit(BitcoinWithdrawalIntent {
-                    nullifier, btc_recipient_hash, wbtc_amount: user_share,
-                });
+                // Bitcoin bridge: lock WBTC in intent escrow (stays in pool)
+                InternalImpl::create_intent(ref self, user_share, btc_recipient_hash, recipient);
+            } else {
+                // Starknet withdrawal: transfer WBTC directly to recipient
+                let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
+                let success = wbtc.transfer(recipient, user_share);
+                assert(success, 'WBTC transfer failed');
+                self.emit(Withdrawal { nullifier, recipient, wbtc_amount: user_share, batch_id });
             }
         }
 
@@ -645,23 +663,21 @@ pub mod ShieldedPool {
             let relayer_fee = (user_share * fee_bps) / 10000;
             let recipient_amount = user_share - relayer_fee;
 
+            // Pay relayer fee regardless of bridge mode
             if relayer_fee > 0 {
                 let fee_success = wbtc.transfer(relayer, relayer_fee);
                 assert(fee_success, 'Relayer fee transfer failed');
             }
 
-            // Send remainder to recipient
-            let success = wbtc.transfer(recipient, recipient_amount);
-            assert(success, 'WBTC transfer failed');
-
-            self.emit(Withdrawal {
-                nullifier, recipient, wbtc_amount: recipient_amount, batch_id,
-            });
-
-            // Emit Bitcoin withdrawal intent for cross-chain bridge
             if btc_recipient_hash != 0 {
-                self.emit(BitcoinWithdrawalIntent {
-                    nullifier, btc_recipient_hash, wbtc_amount: recipient_amount,
+                // Bitcoin bridge: lock remainder in intent escrow
+                InternalImpl::create_intent(ref self, recipient_amount, btc_recipient_hash, recipient);
+            } else {
+                // Starknet withdrawal: transfer remainder to recipient
+                let success = wbtc.transfer(recipient, recipient_amount);
+                assert(success, 'WBTC transfer failed');
+                self.emit(Withdrawal {
+                    nullifier, recipient, wbtc_amount: recipient_amount, batch_id,
                 });
             }
         }
@@ -680,6 +696,7 @@ pub mod ShieldedPool {
             let amount = InternalImpl::denomination_to_amount(denomination);
             assert(amount > 0, 'Invalid denomination tier');
             assert(!self.commitments.entry(commitment).read(), 'Commitment already exists');
+            assert(self.leaf_count.read() < 1048576, 'Merkle tree full');
             assert(zk_commitment != 0, 'Invalid ZK commitment');
             assert(self.zk_commitments.entry(zk_commitment).read() == 0, 'ZK commitment exists');
 
@@ -754,17 +771,15 @@ pub mod ShieldedPool {
                 ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices,
             );
 
-            // Transfer full share to recipient
-            let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
-            let success = wbtc.transfer(recipient, user_share);
-            assert(success, 'WBTC transfer failed');
-
-            self.emit(PrivateWithdrawal { zk_nullifier, recipient, wbtc_amount: user_share, batch_id });
-
             if btc_recipient_hash != 0 {
-                self.emit(BitcoinWithdrawalIntent {
-                    nullifier: zk_nullifier, btc_recipient_hash, wbtc_amount: user_share,
-                });
+                // Bitcoin bridge: lock WBTC in intent escrow
+                InternalImpl::create_intent(ref self, user_share, btc_recipient_hash, recipient);
+            } else {
+                // Starknet withdrawal: transfer WBTC directly to recipient
+                let wbtc = IERC20Dispatcher { contract_address: self.wbtc_token.read() };
+                let success = wbtc.transfer(recipient, user_share);
+                assert(success, 'WBTC transfer failed');
+                self.emit(PrivateWithdrawal { zk_nullifier, recipient, wbtc_amount: user_share, batch_id });
             }
         }
 
@@ -793,21 +808,21 @@ pub mod ShieldedPool {
             let relayer_fee = (user_share * fee_bps) / 10000;
             let recipient_amount = user_share - relayer_fee;
 
+            // Pay relayer fee regardless of bridge mode
             if relayer_fee > 0 {
                 let fee_success = wbtc.transfer(relayer, relayer_fee);
                 assert(fee_success, 'Relayer fee transfer failed');
             }
 
-            let success = wbtc.transfer(recipient, recipient_amount);
-            assert(success, 'WBTC transfer failed');
-
-            self.emit(PrivateWithdrawal {
-                zk_nullifier, recipient, wbtc_amount: recipient_amount, batch_id,
-            });
-
             if btc_recipient_hash != 0 {
-                self.emit(BitcoinWithdrawalIntent {
-                    nullifier: zk_nullifier, btc_recipient_hash, wbtc_amount: recipient_amount,
+                // Bitcoin bridge: lock remainder in intent escrow
+                InternalImpl::create_intent(ref self, recipient_amount, btc_recipient_hash, recipient);
+            } else {
+                // Starknet withdrawal: transfer remainder to recipient
+                let success = wbtc.transfer(recipient, recipient_amount);
+                assert(success, 'WBTC transfer failed');
+                self.emit(PrivateWithdrawal {
+                    zk_nullifier, recipient, wbtc_amount: recipient_amount, batch_id,
                 });
             }
         }
@@ -898,7 +913,9 @@ pub mod ShieldedPool {
 
         fn set_zk_verifier(ref self: ContractState, verifier: ContractAddress) {
             assert(get_caller_address() == self.owner.read(), 'Only owner');
+            let old_verifier = self.zk_verifier.read();
             self.zk_verifier.write(verifier);
+            self.emit(ZkVerifierUpdated { old_verifier, new_verifier: verifier });
         }
 
         fn register_view_key(ref self: ContractState, commitment: felt252, view_key_hash: felt252) {
@@ -942,30 +959,8 @@ pub mod ShieldedPool {
                 ref self, denomination, zk_nullifier, zk_commitment, proof, merkle_path, path_indices,
             );
 
-            // Lock WBTC in escrow (stays in pool contract)
-            let intent_id = self.intent_count.read();
-            let now = get_block_timestamp();
-            let zero_addr: ContractAddress = 0.try_into().unwrap();
-
-            let lock = IntentLock {
-                amount: user_share,
-                btc_address_hash,
-                recipient,
-                solver: zero_addr,
-                timestamp: now,
-                status: 0, // CREATED
-            };
-
-            self.intent_locks.entry(intent_id).write(lock);
-            self.intent_count.write(intent_id + 1);
-
-            self.emit(IntentCreated {
-                intent_id,
-                btc_address_hash,
-                amount: user_share,
-                recipient,
-                timestamp: now,
-            });
+            // Lock WBTC in intent escrow (stays in pool contract)
+            InternalImpl::create_intent(ref self, user_share, btc_address_hash, recipient);
         }
 
         fn claim_intent(ref self: ContractState, intent_id: u64) {
@@ -1041,17 +1036,31 @@ pub mod ShieldedPool {
             assert(get_caller_address() == self.owner.read(), 'Only owner');
             assert(threshold > 0, 'Threshold must be > 0');
             assert(threshold <= signers.len(), 'Threshold > signers');
+            assert(timeout >= 600, 'Timeout too short');
 
+            // Revoke old signers before adding new ones
+            let old_count = self.oracle_signer_count.read();
+            let mut j: u32 = 0;
+            while j < old_count {
+                let old_signer = self.oracle_signer_list.entry(j).read();
+                self.oracle_signers.entry(old_signer).write(false);
+                j += 1;
+            };
+
+            // Add new signers
             let mut i: u32 = 0;
             let len = signers.len();
             while i < len {
                 self.oracle_signers.entry(*signers.at(i)).write(true);
+                self.oracle_signer_list.entry(i).write(*signers.at(i));
                 i += 1;
             };
 
             self.oracle_signer_count.write(len);
             self.oracle_threshold.write(threshold);
             self.intent_timeout.write(timeout);
+
+            self.emit(OracleConfigUpdated { threshold, signer_count: len, timeout });
         }
 
         fn get_intent(self: @ContractState, intent_id: u64) -> IntentLock {
@@ -1075,7 +1084,7 @@ pub mod ShieldedPool {
         }
 
         fn get_protocol_version(self: @ContractState) -> u32 {
-            2
+            3
         }
     }
 
@@ -1142,6 +1151,7 @@ pub mod ShieldedPool {
 
             // 9. Calculate pro-rata WBTC share
             let user_share = (amount * batch.total_wbtc_out) / batch.total_usdc_in;
+            assert(user_share > 0, 'Share rounds to zero');
 
             (user_share, batch_id)
         }
@@ -1213,6 +1223,7 @@ pub mod ShieldedPool {
 
             // 9. Calculate pro-rata WBTC share
             let user_share = (amount * batch.total_wbtc_out) / batch.total_usdc_in;
+            assert(user_share > 0, 'Share rounds to zero');
 
             (user_share, batch_id)
         }
@@ -1234,11 +1245,11 @@ pub mod ShieldedPool {
         fn denomination_to_amount(tier: u8) -> u256 {
             // Amounts in USDC with 6 decimals (1 USDC = 1_000_000)
             if tier == 0 {
-                100_000_000_u256 // 100 USDC
+                1_000_000_u256 // $1 USDC
             } else if tier == 1 {
-                1_000_000_000_u256 // 1,000 USDC
+                10_000_000_u256 // $10 USDC
             } else if tier == 2 {
-                10_000_000_000_u256 // 10,000 USDC
+                100_000_000_u256 // $100 USDC
             } else {
                 0_u256
             }
@@ -1304,6 +1315,38 @@ pub mod ShieldedPool {
             current
         }
 
+        /// Create an intent escrow lock. WBTC stays in pool until settled or expired.
+        fn create_intent(
+            ref self: ContractState,
+            amount: u256,
+            btc_address_hash: felt252,
+            recipient: ContractAddress,
+        ) {
+            let intent_id = self.intent_count.read();
+            let now = get_block_timestamp();
+            let zero_addr: ContractAddress = 0.try_into().unwrap();
+
+            let lock = IntentLock {
+                amount,
+                btc_address_hash,
+                recipient,
+                solver: zero_addr,
+                timestamp: now,
+                status: 0, // CREATED
+            };
+
+            self.intent_locks.entry(intent_id).write(lock);
+            self.intent_count.write(intent_id + 1);
+
+            self.emit(IntentCreated {
+                intent_id,
+                btc_address_hash,
+                amount,
+                recipient,
+                timestamp: now,
+            });
+        }
+
         /// Release escrowed WBTC to the solver. Called when oracle threshold met.
         fn do_release_to_solver(ref self: ContractState, intent_id: u64) {
             let mut lock = self.intent_locks.entry(intent_id).read();
@@ -1332,6 +1375,7 @@ pub mod ShieldedPool {
             path: Array<felt252>,
             indices: Array<u8>,
         ) -> felt252 {
+            assert(path.len() == TREE_DEPTH, 'Invalid proof length');
             assert(path.len() == indices.len(), 'Path/indices length mismatch');
 
             let mut current = leaf;
