@@ -406,7 +406,7 @@ export default function Dashboard() {
               className="mt-3 flex items-center gap-1.5 text-[11px] text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
             >
               <CheckCircle size={10} strokeWidth={2} />
-              Conversion complete — view on Starkscan
+              Conversion complete — view on Voyager
               <ExternalLink size={10} strokeWidth={1.5} className="opacity-60" />
             </a>
           )}

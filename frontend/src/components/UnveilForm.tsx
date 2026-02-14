@@ -650,7 +650,7 @@ export default function UnveilForm() {
               rel="noopener noreferrer"
               className="flex items-center justify-center gap-1.5 text-xs text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
             >
-              View on Starkscan
+              View on Voyager
               <ExternalLink size={10} strokeWidth={1.5} />
             </a>
           )}

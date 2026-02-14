@@ -3,8 +3,8 @@ import addresses from "@/contracts/addresses.json";
 export const isMainnet = addresses.network === "mainnet";
 
 export const EXPLORER_BASE = isMainnet
-  ? "https://starkscan.co"
-  : "https://sepolia.starkscan.co";
+  ? "https://voyager.online"
+  : "https://sepolia.voyager.online";
 
 export const EXPLORER_TX = `${EXPLORER_BASE}/tx/`;
 export const EXPLORER_CONTRACT = `${EXPLORER_BASE}/contract/`;
