@@ -216,7 +216,9 @@ export default function AgentTab() {
     setPlan(result);
   }
 
-  // ---- Strategy Execution (single multicall — one wallet confirmation) ----
+  // ---- Strategy Execution ----
+  // DCA mode: sequential deposits with real delays (temporal decorrelation)
+  // Non-DCA: single multicall (efficient, one wallet confirmation)
   const executeStrategy = useCallback(async () => {
     if (!plan || !isConnected || !address) return;
 
@@ -227,74 +229,148 @@ export default function AgentTab() {
     }));
     setExecutionSteps(steps);
 
+    const isDCA = steps.length > 1 && steps.some((s) => s.delaySeconds > 0);
+
     emitLog("act", `Initiating autonomous execution: ${steps.length} deposits`);
-    emitLog("think", `Building multicall: ${steps.length} deposits in a single transaction`);
 
     try {
       const btcIdHash = bitcoinAddress
         ? computeBtcIdentityHash(bitcoinAddress)
         : "0x0";
 
-      // Generate all notes and build all calls upfront
-      const notes = [];
-      const allCalls = [];
+      if (isDCA) {
+        // --- Sequential DCA: real delays between deposits ---
+        emitLog("think", `DCA mode: ${steps.length} sequential deposits with temporal decorrelation`);
 
-      for (let i = 0; i < steps.length; i++) {
-        const note = generatePrivateNote(
-          steps[i].tier,
-          0,
-          0,
-          btcIdHash !== "0x0" ? btcIdHash : undefined,
-        );
-        notes.push(note);
+        let lastTxHash = "";
+        for (let i = 0; i < steps.length; i++) {
+          // Wait for delay (skip first deposit)
+          if (i > 0 && steps[i].delaySeconds > 0) {
+            const delay = steps[i].delaySeconds;
+            emitLog("think", `Waiting ${delay}s before deposit ${i + 1} (temporal decorrelation)...`);
 
-        const rawAmount = BigInt(DENOMINATIONS[steps[i].tier]);
+            // Mark current step as waiting
+            setExecutionSteps((prev) =>
+              prev.map((s, idx) => idx === i ? { ...s, status: "waiting" } : s)
+            );
+            setCurrentStepIdx(i);
 
-        // Approve + deposit for this step
-        allCalls.push({
-          contractAddress: usdcAddress,
-          entrypoint: "approve",
-          calldata: CallData.compile({
-            spender: poolAddress,
-            amount: { low: rawAmount, high: 0n },
-          }),
-        });
-        allCalls.push({
-          contractAddress: poolAddress,
-          entrypoint: "deposit_private",
-          calldata: CallData.compile({
-            commitment: note.commitment,
-            denomination: steps[i].tier,
-            btc_identity_hash: btcIdHash,
-            zk_commitment: note.zkCommitment!,
-          }),
-        });
+            // Real delay with countdown
+            for (let sec = delay; sec > 0; sec--) {
+              await new Promise((r) => setTimeout(r, 1000));
+            }
+          }
 
-        emitLog("act", `Prepared deposit ${i + 1}/${steps.length}: ${steps[i].label} USDC`);
+          // Generate note for this deposit
+          const note = generatePrivateNote(
+            steps[i].tier,
+            0,
+            0,
+            btcIdHash !== "0x0" ? btcIdHash : undefined,
+          );
+
+          const rawAmount = BigInt(DENOMINATIONS[steps[i].tier]);
+
+          const depositCalls = [
+            {
+              contractAddress: usdcAddress,
+              entrypoint: "approve",
+              calldata: CallData.compile({
+                spender: poolAddress,
+                amount: { low: rawAmount, high: 0n },
+              }),
+            },
+            {
+              contractAddress: poolAddress,
+              entrypoint: "deposit_private",
+              calldata: CallData.compile({
+                commitment: note.commitment,
+                denomination: steps[i].tier,
+                btc_identity_hash: btcIdHash,
+                zk_commitment: note.zkCommitment!,
+              }),
+            },
+          ];
+
+          // Mark as executing
+          setExecutionSteps((prev) =>
+            prev.map((s, idx) => idx === i ? { ...s, status: "executing" } : s)
+          );
+          setCurrentStepIdx(i);
+          emitLog("act", `Executing deposit ${i + 1}/${steps.length}: ${steps[i].label} USDC`);
+
+          const result = await sendAsync(depositCalls);
+          lastTxHash = result.transaction_hash;
+
+          await saveNote(note, address);
+
+          // Mark as done
+          setExecutionSteps((prev) =>
+            prev.map((s, idx) => idx === i ? { ...s, status: "done", txHash: result.transaction_hash } : s)
+          );
+          emitLog("result", `Deposit ${i + 1}/${steps.length} confirmed: ${result.transaction_hash.slice(0, 18)}...`);
+        }
+
+        emitLog("result", `All ${steps.length} DCA deposits confirmed across ${steps.length} transactions`);
+      } else {
+        // --- Single multicall: all deposits in one tx ---
+        emitLog("think", `Batching ${steps.length} deposit(s) in single transaction`);
+
+        const notes = [];
+        const allCalls = [];
+
+        for (let i = 0; i < steps.length; i++) {
+          const note = generatePrivateNote(
+            steps[i].tier,
+            0,
+            0,
+            btcIdHash !== "0x0" ? btcIdHash : undefined,
+          );
+          notes.push(note);
+
+          const rawAmount = BigInt(DENOMINATIONS[steps[i].tier]);
+
+          allCalls.push({
+            contractAddress: usdcAddress,
+            entrypoint: "approve",
+            calldata: CallData.compile({
+              spender: poolAddress,
+              amount: { low: rawAmount, high: 0n },
+            }),
+          });
+          allCalls.push({
+            contractAddress: poolAddress,
+            entrypoint: "deposit_private",
+            calldata: CallData.compile({
+              commitment: note.commitment,
+              denomination: steps[i].tier,
+              btc_identity_hash: btcIdHash,
+              zk_commitment: note.zkCommitment!,
+            }),
+          });
+
+          emitLog("act", `Prepared deposit ${i + 1}/${steps.length}: ${steps[i].label} USDC`);
+        }
+
+        emitLog("act", `Submitting ${allCalls.length} calls as single multicall...`);
+
+        const updatedSteps = steps.map((s) => ({ ...s, status: "executing" as StepStatus }));
+        setExecutionSteps(updatedSteps);
+
+        const result = await sendAsync(allCalls);
+
+        for (const note of notes) {
+          await saveNote(note, address);
+        }
+
+        const doneSteps = updatedSteps.map((s) => ({
+          ...s,
+          status: "done" as StepStatus,
+          txHash: result.transaction_hash,
+        }));
+        setExecutionSteps(doneSteps);
+        emitLog("result", `All ${steps.length} deposits confirmed in single tx: ${result.transaction_hash.slice(0, 18)}...`);
       }
-
-      emitLog("act", `Submitting ${allCalls.length} calls as single multicall...`);
-
-      // Mark all as executing
-      const updatedSteps = steps.map((s) => ({ ...s, status: "executing" as StepStatus }));
-      setExecutionSteps(updatedSteps);
-
-      // Single wallet confirmation for ALL deposits
-      const result = await sendAsync(allCalls);
-
-      // Save all notes
-      for (const note of notes) {
-        await saveNote(note, address);
-      }
-
-      // Mark all as done
-      const doneSteps = updatedSteps.map((s) => ({
-        ...s,
-        status: "done" as StepStatus,
-        txHash: result.transaction_hash,
-      }));
-      setExecutionSteps(doneSteps);
-      emitLog("result", `All ${steps.length} deposits confirmed in single tx: ${result.transaction_hash.slice(0, 18)}...`);
 
       // Trigger batch execution
       emitLog("act", "Triggering batch conversion via AVNU...");
@@ -317,12 +393,13 @@ export default function AgentTab() {
       emitLog("result", "Strategy execution complete. Proceed to Confidential Exit.");
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Transaction failed";
-      const errorSteps = steps.map((s) => ({
-        ...s,
-        status: "error" as StepStatus,
-        error: msg,
-      }));
-      setExecutionSteps(errorSteps);
+      setExecutionSteps((prev) =>
+        prev.map((s) =>
+          s.status !== "done"
+            ? { ...s, status: "error" as StepStatus, error: msg }
+            : s
+        )
+      );
 
       if (msg.includes("reject") || msg.includes("abort") || msg.includes("cancel") || msg.includes("REFUSED")) {
         emitLog("result", "Transaction rejected by wallet. Strategy paused.");
@@ -490,25 +567,34 @@ export default function AgentTab() {
               </div>
             ))}
 
-            {/* Multicall result */}
-            {executionSteps.length > 0 && executionSteps[0].status === "done" && executionSteps[0].txHash && (
-              <div className="flex gap-2 py-0.5 text-[11px] leading-relaxed">
-                <span className="text-emerald-400 font-semibold whitespace-nowrap">[TX     ]</span>
-                <a
-                  href={`${EXPLORER_TX}${executionSteps[0].txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-emerald-400/80 hover:text-emerald-300 hover:underline flex items-center gap-1"
-                >
-                  {executionSteps.length} deposits confirmed: {executionSteps[0].txHash.slice(0, 18)}...
-                  <ExternalLink size={8} strokeWidth={2} />
-                </a>
-              </div>
-            )}
-            {executionSteps.length > 0 && executionSteps[0].status === "error" && (
+            {/* Per-step TX results (DCA mode shows each, single multicall shows one) */}
+            {executionSteps.map((step, idx) => {
+              if (step.status === "done" && step.txHash) {
+                // Deduplicate: for single multicall all share same txHash, show only once
+                const isDuplicate = idx > 0 && executionSteps[idx - 1]?.txHash === step.txHash;
+                if (isDuplicate) return null;
+                const count = executionSteps.filter((s) => s.txHash === step.txHash).length;
+                return (
+                  <div key={`tx-${idx}`} className="flex gap-2 py-0.5 text-[11px] leading-relaxed">
+                    <span className="text-emerald-400 font-semibold whitespace-nowrap">[TX     ]</span>
+                    <a
+                      href={`${EXPLORER_TX}${step.txHash}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-emerald-400/80 hover:text-emerald-300 hover:underline flex items-center gap-1"
+                    >
+                      {count > 1 ? `${count} deposits` : `Deposit ${idx + 1}`} confirmed: {step.txHash.slice(0, 18)}...
+                      <ExternalLink size={8} strokeWidth={2} />
+                    </a>
+                  </div>
+                );
+              }
+              return null;
+            })}
+            {executionSteps.some((s) => s.status === "error") && (
               <div className="flex gap-2 py-0.5 text-[11px] leading-relaxed">
                 <span className="text-red-400 font-semibold whitespace-nowrap">[ERROR  ]</span>
-                <span className="text-red-400/80">{executionSteps[0].error?.slice(0, 80)}</span>
+                <span className="text-red-400/80">{executionSteps.find((s) => s.status === "error")?.error?.slice(0, 80)}</span>
               </div>
             )}
 

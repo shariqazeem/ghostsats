@@ -208,7 +208,11 @@ export function generateAgentLog(
   logs.push({ timestamp: tick(), type: "decide", message: `Selected: ${tier.label} tier (anonymity set: ${tier.anonSet})` });
   logs.push({ timestamp: tick(), type: "decide", message: `Plan: ${numDeposits}x ${tier.label} deposits = $${totalUsdc} USDC` });
   logs.push({ timestamp: tick(), type: "decide", message: `Estimated yield: ${estBtc.toFixed(estBtc < 0.01 ? 6 : 4)} BTC (1% slippage buffer)` });
-  logs.push({ timestamp: tick(), type: "decide", message: `Timing: randomized 30-120s delays between deposits` });
+  if (isDCA) {
+    logs.push({ timestamp: tick(), type: "decide", message: `Timing: sequential execution with 30-120s delays (temporal decorrelation)` });
+  } else {
+    logs.push({ timestamp: tick(), type: "decide", message: `Timing: single atomic multicall (maximum efficiency)` });
+  }
   logs.push({ timestamp: tick(), type: "decide", message: `Post-execution: auto-trigger batch conversion via AVNU` });
 
   const projectedAnonSets = { ...poolState.anonSets };
@@ -270,7 +274,7 @@ export function generateStrategy(
     projectedAnonSet >= 3 ? "Moderate" : "Low";
 
   const analysis = buildAnalysis(poolState, btcPrice, tier, totalUsdc);
-  const reasoning = buildReasoning(tier, numDeposits, maxPrivacy, poolState, projectedCSI);
+  const reasoning = buildReasoning(tier, numDeposits, maxPrivacy, isDCA, poolState, projectedCSI);
 
   return {
     analysis,
@@ -326,6 +330,7 @@ function buildReasoning(
   tier: TierOption,
   numDeposits: number,
   maxPrivacy: boolean,
+  isDCA: boolean,
   poolState: PoolState,
   projectedCSI: number,
 ): string {
@@ -341,7 +346,11 @@ function buildReasoning(
 
   lines.push(``);
   lines.push(`EXECUTION PLAN`);
-  lines.push(`${numDeposits} sequential deposits with randomized delays (30-120s). This timing pattern prevents temporal correlation analysis.`);
+  if (isDCA) {
+    lines.push(`${numDeposits} sequential deposits with randomized delays (30-120s). Each deposit lands in a separate block, preventing temporal correlation analysis.`);
+  } else {
+    lines.push(`${numDeposits} deposit(s) batched in a single atomic multicall for maximum efficiency.`);
+  }
   lines.push(``);
   lines.push(`Each deposit enters the shielded pool as an indistinguishable commitment. After batch conversion via AVNU, the resulting BTC can be withdrawn through a confidential exit with no on-chain link to the deposit address.`);
   lines.push(``);
