@@ -60,11 +60,11 @@ const EXAMPLE_PROMPTS = [
 ];
 
 const LOG_COLORS: Record<AgentLogEntry["type"], string> = {
-  observe: "text-blue-400",
-  think: "text-purple-400",
-  decide: "text-emerald-400",
-  act: "text-[var(--accent-orange)]",
-  result: "text-white",
+  observe: "text-blue-600",
+  think: "text-violet-600",
+  decide: "text-emerald-600",
+  act: "text-orange-600",
+  result: "text-gray-900",
 };
 
 const LOG_PREFIXES: Record<AgentLogEntry["type"], string> = {
@@ -450,14 +450,14 @@ export default function AgentTab() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-7 h-7 rounded-lg bg-purple-950/40 border border-purple-800/30 flex items-center justify-center">
-            <Brain size={14} strokeWidth={1.5} className="text-purple-400" />
+          <div className="w-7 h-7 rounded-lg bg-orange-50 border border-orange-200 flex items-center justify-center">
+            <Brain size={14} strokeWidth={1.5} className="text-[#FF5A00]" />
           </div>
           <div>
-            <h3 className="text-[13px] font-semibold text-[var(--text-primary)]">
+            <h3 className="text-[13px] font-semibold text-gray-900">
               Veil Strategist
             </h3>
-            <p className="text-[10px] text-[var(--text-tertiary)]">
+            <p className="text-xs text-gray-400">
               Autonomous AI accumulation agent
             </p>
           </div>
@@ -465,10 +465,10 @@ export default function AgentTab() {
         {/* Autonomous toggle */}
         <button
           onClick={() => setAutonomousMode(!autonomousMode)}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all cursor-pointer border ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer border ${
             autonomousMode
-              ? "bg-emerald-950/30 border-emerald-800/30 text-emerald-400"
-              : "bg-[var(--bg-secondary)] border-[var(--border-subtle)] text-[var(--text-tertiary)]"
+              ? "bg-emerald-50 border-emerald-200 text-emerald-600"
+              : "bg-gray-50 border-gray-200 text-gray-400"
           }`}
         >
           <Radio size={10} strokeWidth={2} className={autonomousMode ? "animate-pulse" : ""} />
@@ -480,18 +480,18 @@ export default function AgentTab() {
       {poolState && (
         <div className="grid grid-cols-4 gap-2">
           {[
-            { label: "BTC", value: btcPrice > 0 ? `$${btcPrice.toLocaleString()}` : "Loading...", icon: TrendingUp, color: "text-[var(--accent-orange)]" },
-            { label: "$1 Pool", value: `${poolState.anonSets[0]}`, icon: Users, color: "text-[var(--text-primary)]" },
-            { label: "$10 Pool", value: `${poolState.anonSets[1]}`, icon: Users, color: "text-[var(--text-primary)]" },
-            { label: "$100 Pool", value: `${poolState.anonSets[2]}`, icon: Shield, color: "text-[var(--text-primary)]" },
+            { label: "BTC", value: btcPrice > 0 ? `$${btcPrice.toLocaleString()}` : "Loading...", icon: TrendingUp, color: "text-[#FF5A00]" },
+            { label: "$1 Pool", value: `${poolState.anonSets[0]}`, icon: Users, color: "text-gray-900" },
+            { label: "$10 Pool", value: `${poolState.anonSets[1]}`, icon: Users, color: "text-gray-900" },
+            { label: "$100 Pool", value: `${poolState.anonSets[2]}`, icon: Shield, color: "text-gray-900" },
           ].map(({ label, value, icon: Icon, color }) => (
             <div
               key={label}
-              className="rounded-lg p-2 bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-center"
+              className="rounded-lg p-2 bg-gray-50 border border-gray-200 text-center"
             >
               <div className="flex items-center justify-center gap-1 mb-0.5">
-                <Icon size={9} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
-                <span className="text-[9px] text-[var(--text-tertiary)]">{label}</span>
+                <Icon size={9} strokeWidth={1.5} className="text-gray-400" />
+                <span className="text-[11px] text-gray-400">{label}</span>
               </div>
               <span className={`text-[12px] font-[family-name:var(--font-geist-mono)] font-bold font-tabular ${color}`}>
                 {value}
@@ -515,14 +515,14 @@ export default function AgentTab() {
                 handlePlanStrategy();
               }
             }}
-            className="w-full px-4 py-3 rounded-xl bg-[var(--bg-secondary)] border border-[var(--border-subtle)] text-[13px] text-[var(--text-primary)] placeholder:text-[var(--text-quaternary)] resize-none focus:outline-none focus:border-purple-500/50 transition-colors"
+            className="w-full px-4 py-3 rounded-xl bg-gray-50 border border-gray-200 text-[13px] text-gray-900 placeholder:text-gray-300 resize-none focus:outline-none focus:border-orange-300 transition-colors"
           />
           <div className="flex flex-wrap gap-1.5">
             {EXAMPLE_PROMPTS.map((prompt) => (
               <button
                 key={prompt}
                 onClick={() => setInput(prompt)}
-                className="px-2.5 py-1 rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[10px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] hover:border-purple-500/30 transition-all cursor-pointer"
+                className="px-2.5 py-1 rounded-lg bg-gray-100 border border-gray-200 text-xs text-gray-400 hover:text-gray-600 hover:border-orange-300 transition-all cursor-pointer"
               >
                 {prompt}
               </button>
@@ -531,7 +531,7 @@ export default function AgentTab() {
           <motion.button
             onClick={handlePlanStrategy}
             disabled={!input.trim()}
-            className="w-full py-3.5 bg-purple-600 hover:bg-purple-500 text-white rounded-xl text-[13px] font-semibold
+            className="w-full py-3.5 bg-[#FF5A00] hover:bg-[#e65100] text-white rounded-xl text-[13px] font-semibold
                        disabled:opacity-30 disabled:cursor-not-allowed
                        cursor-pointer transition-all flex items-center justify-center gap-2"
             whileHover={input.trim() ? { y: -1 } : {}}
@@ -545,29 +545,24 @@ export default function AgentTab() {
 
       {/* Agent Terminal */}
       {agentPhase !== "idle" && (
-        <div className="rounded-xl border border-purple-800/20 bg-[#0d0d12] overflow-hidden">
+        <div className="rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
           {/* Terminal header */}
-          <div className="px-3 py-2 border-b border-purple-800/20 flex items-center gap-2 bg-[#12121a]">
-            <div className="flex gap-1.5">
-              <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-              <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-              <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
-            </div>
-            <div className="flex items-center gap-1.5 ml-2">
-              <Terminal size={11} strokeWidth={1.5} className="text-purple-400" />
-              <span className="text-[10px] font-[family-name:var(--font-geist-mono)] text-purple-400 font-semibold">
+          <div className="px-3 py-2 border-b border-gray-200 flex items-center gap-2 bg-gray-100">
+            <div className="flex items-center gap-1.5">
+              <Terminal size={11} strokeWidth={1.5} className="text-[#FF5A00]" />
+              <span className="text-xs font-[family-name:var(--font-geist-mono)] text-[#FF5A00] font-semibold">
                 veil-strategist
               </span>
             </div>
             <div className="ml-auto flex items-center gap-1.5">
               {isRunning && (
-                <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-[family-name:var(--font-geist-mono)]">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-[family-name:var(--font-geist-mono)]">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                   RUNNING
                 </span>
               )}
               {agentPhase === "complete" && (
-                <span className="flex items-center gap-1 text-[9px] text-emerald-400 font-[family-name:var(--font-geist-mono)]">
+                <span className="flex items-center gap-1 text-[11px] text-emerald-600 font-[family-name:var(--font-geist-mono)]">
                   <CheckCircle size={9} strokeWidth={2} />
                   COMPLETE
                 </span>
@@ -582,11 +577,11 @@ export default function AgentTab() {
           >
             {/* Agent thinking logs */}
             {visibleLogs.map((log, i) => (
-              <div key={i} className="flex gap-2 py-0.5 text-[11px] leading-relaxed">
+              <div key={i} className="flex gap-2 py-0.5 text-xs leading-relaxed">
                 <span className={`${LOG_COLORS[log.type]} font-semibold whitespace-nowrap`}>
                   [{LOG_PREFIXES[log.type]}]
                 </span>
-                <span className="text-[var(--text-secondary)]">
+                <span className="text-gray-600">
                   {log.message}
                 </span>
               </div>
@@ -600,13 +595,13 @@ export default function AgentTab() {
                 if (isDuplicate) return null;
                 const count = executionSteps.filter((s) => s.txHash === step.txHash).length;
                 return (
-                  <div key={`tx-${idx}`} className="flex gap-2 py-0.5 text-[11px] leading-relaxed">
-                    <span className="text-emerald-400 font-semibold whitespace-nowrap">[TX     ]</span>
+                  <div key={`tx-${idx}`} className="flex gap-2 py-0.5 text-xs leading-relaxed">
+                    <span className="text-emerald-600 font-semibold whitespace-nowrap">[TX     ]</span>
                     <a
                       href={`${EXPLORER_TX}${step.txHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-emerald-400/80 hover:text-emerald-300 hover:underline flex items-center gap-1"
+                      className="text-emerald-600/80 hover:text-emerald-500 hover:underline flex items-center gap-1"
                     >
                       {count > 1 ? `${count} deposits` : `Deposit ${idx + 1}`} confirmed: {step.txHash.slice(0, 18)}...
                       <ExternalLink size={8} strokeWidth={2} />
@@ -617,21 +612,21 @@ export default function AgentTab() {
               return null;
             })}
             {executionSteps.some((s) => s.status === "error") && (
-              <div className="flex gap-2 py-0.5 text-[11px] leading-relaxed">
-                <span className="text-red-400 font-semibold whitespace-nowrap">[ERROR  ]</span>
-                <span className="text-red-400/80">{executionSteps.find((s) => s.status === "error")?.error?.slice(0, 80)}</span>
+              <div className="flex gap-2 py-0.5 text-xs leading-relaxed">
+                <span className="text-red-500 font-semibold whitespace-nowrap">[ERROR  ]</span>
+                <span className="text-red-500/80">{executionSteps.find((s) => s.status === "error")?.error?.slice(0, 80)}</span>
               </div>
             )}
 
             {/* Batch tx */}
             {batchTxHash && (
-              <div className="flex gap-2 py-0.5 text-[11px] leading-relaxed">
-                <span className="text-[var(--accent-orange)] font-semibold whitespace-nowrap">[BATCH  ]</span>
+              <div className="flex gap-2 py-0.5 text-xs leading-relaxed">
+                <span className="text-[#FF5A00] font-semibold whitespace-nowrap">[BATCH  ]</span>
                 <a
                   href={`${EXPLORER_TX}${batchTxHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[var(--accent-orange)]/80 hover:underline flex items-center gap-1"
+                  className="text-[#FF5A00]/80 hover:underline flex items-center gap-1"
                 >
                   Converted to BTC: {batchTxHash.slice(0, 18)}...
                   <ExternalLink size={8} strokeWidth={2} />
@@ -641,10 +636,10 @@ export default function AgentTab() {
 
             {/* Live DCA countdown */}
             {countdown > 0 && (
-              <div className="flex gap-2 py-1 text-[11px] leading-relaxed">
-                <span className="text-yellow-400 font-semibold whitespace-nowrap">[WAIT   ]</span>
-                <span className="text-yellow-400/90 flex items-center gap-2">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+              <div className="flex gap-2 py-1 text-xs leading-relaxed">
+                <span className="text-amber-600 font-semibold whitespace-nowrap">[WAIT   ]</span>
+                <span className="text-amber-500 flex items-center gap-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
                   Next deposit in {countdown}s — temporal decorrelation active
                 </span>
               </div>
@@ -652,8 +647,8 @@ export default function AgentTab() {
 
             {/* Blinking cursor */}
             {isRunning && countdown === 0 && (
-              <div className="flex gap-2 py-0.5 text-[11px]">
-                <span className="w-2 h-3.5 bg-purple-400 animate-pulse" />
+              <div className="flex gap-2 py-0.5 text-xs">
+                <span className="w-2 h-3.5 bg-[#FF5A00] animate-pulse" />
               </div>
             )}
           </div>
@@ -667,19 +662,19 @@ export default function AgentTab() {
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.3, delay: 0.2 }}
-            className="rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-secondary)] p-4 space-y-3"
+            className="rounded-xl border border-gray-200 bg-gray-50 p-4 space-y-3"
           >
             <div className="flex items-center justify-between">
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
+              <span className="text-xs font-semibold text-gray-400">
                 {agentPhase === "complete" ? "Execution Summary" : "Strategy"}
               </span>
               <div className="flex items-center gap-2">
                 {executionSteps.length > 0 && (
-                  <span className="text-[10px] font-[family-name:var(--font-geist-mono)] text-[var(--text-tertiary)] font-tabular">
+                  <span className="text-xs font-[family-name:var(--font-geist-mono)] text-gray-400 font-tabular">
                     {completedSteps}/{executionSteps.length} deposits
                   </span>
                 )}
-                <span className="text-[11px] font-[family-name:var(--font-geist-mono)] font-bold text-[var(--text-primary)] font-tabular">
+                <span className="text-xs font-[family-name:var(--font-geist-mono)] font-bold text-gray-900 font-tabular">
                   ${plan.strategy.totalUsdc.toLocaleString()}
                 </span>
               </div>
@@ -687,7 +682,7 @@ export default function AgentTab() {
 
             {/* Progress bar */}
             {executionSteps.length > 0 && (
-              <div className="h-1.5 bg-[var(--bg-tertiary)] rounded-full overflow-hidden">
+              <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                 <motion.div
                   className="h-full rounded-full bg-emerald-500"
                   initial={{ width: 0 }}
@@ -699,21 +694,21 @@ export default function AgentTab() {
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-2">
-              <div className="text-center rounded-lg p-2 bg-[var(--bg-tertiary)]">
-                <div className="text-[9px] text-[var(--text-tertiary)] uppercase">Est. BTC</div>
-                <div className="text-[13px] font-[family-name:var(--font-geist-mono)] font-bold text-[var(--accent-orange)] font-tabular">
+              <div className="text-center rounded-lg p-2 bg-white border border-gray-200">
+                <div className="text-[11px] text-gray-400">Est. BTC</div>
+                <div className="text-[13px] font-[family-name:var(--font-geist-mono)] font-bold text-[#FF5A00] font-tabular">
                   {plan.strategy.estimatedBtc}
                 </div>
               </div>
-              <div className="text-center rounded-lg p-2 bg-[var(--bg-tertiary)]">
-                <div className="text-[9px] text-[var(--text-tertiary)] uppercase">Privacy</div>
-                <div className="text-[12px] font-semibold text-emerald-400">
+              <div className="text-center rounded-lg p-2 bg-white border border-gray-200">
+                <div className="text-[11px] text-gray-400">Privacy</div>
+                <div className="text-[12px] font-semibold text-emerald-600">
                   {plan.strategy.privacyScore.split("(")[0].trim()}
                 </div>
               </div>
-              <div className="text-center rounded-lg p-2 bg-[var(--bg-tertiary)]">
-                <div className="text-[9px] text-[var(--text-tertiary)] uppercase">CSI</div>
-                <div className="text-[13px] font-[family-name:var(--font-geist-mono)] font-bold text-purple-400 font-tabular">
+              <div className="text-center rounded-lg p-2 bg-white border border-gray-200">
+                <div className="text-[11px] text-gray-400">CSI</div>
+                <div className="text-[13px] font-[family-name:var(--font-geist-mono)] font-bold text-[#FF5A00] font-tabular">
                   {plan.strategy.csiImpact}
                 </div>
               </div>
@@ -724,7 +719,7 @@ export default function AgentTab() {
               <motion.button
                 onClick={executeStrategy}
                 disabled={!isConnected}
-                className="w-full py-3.5 bg-[var(--accent-orange)] text-white rounded-xl text-[13px] font-semibold
+                className="w-full py-3.5 bg-[#FF5A00] hover:bg-[#e65100] text-white rounded-xl text-[13px] font-semibold
                            disabled:opacity-30 disabled:cursor-not-allowed
                            cursor-pointer transition-all flex items-center justify-center gap-2"
                 whileHover={{ y: -1 }}
@@ -741,16 +736,16 @@ export default function AgentTab() {
             {agentPhase === "complete" && (
               <div className="space-y-2">
                 {batchTxHash && (
-                  <div className="rounded-lg p-2.5 bg-emerald-950/20 border border-emerald-800/25 flex items-center gap-2">
-                    <CheckCircle size={12} strokeWidth={2} className="text-emerald-400 flex-shrink-0" />
-                    <span className="text-[11px] font-semibold text-emerald-400">
+                  <div className="rounded-lg p-2.5 bg-emerald-50 border border-emerald-200 flex items-center gap-2">
+                    <CheckCircle size={12} strokeWidth={2} className="text-emerald-600 flex-shrink-0" />
+                    <span className="text-xs font-semibold text-emerald-600">
                       BTC conversion complete
                     </span>
                     <a
                       href={`${EXPLORER_TX}${batchTxHash}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="ml-auto text-[10px] text-emerald-400/70 hover:underline font-[family-name:var(--font-geist-mono)] flex items-center gap-1"
+                      className="ml-auto text-xs text-emerald-500 hover:underline font-[family-name:var(--font-geist-mono)] flex items-center gap-1"
                     >
                       tx <ExternalLink size={8} strokeWidth={2} />
                     </a>
@@ -767,19 +762,19 @@ export default function AgentTab() {
                       setBatchTxHash(null);
                       setInput("");
                     }}
-                    className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-[var(--text-tertiary)] bg-[var(--bg-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                    className="flex-1 py-2.5 rounded-xl text-[12px] font-semibold text-gray-400 bg-gray-100 border border-gray-200 hover:text-gray-900 transition-colors cursor-pointer"
                   >
                     New Strategy
                   </button>
                 </div>
-                <p className="text-[10px] text-emerald-400/70 text-center">
+                <p className="text-xs text-emerald-500 text-center">
                   Proceed to <strong>Confidential Exit</strong> tab to claim BTC
                 </p>
               </div>
             )}
 
             {!isConnected && agentPhase === "planned" && (
-              <p className="text-[11px] text-[var(--text-tertiary)] text-center">
+              <p className="text-xs text-gray-400 text-center">
                 Connect your wallet to execute
               </p>
             )}

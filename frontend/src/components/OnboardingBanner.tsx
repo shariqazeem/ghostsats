@@ -20,52 +20,52 @@ export default function OnboardingBanner() {
         animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, y: -12 }}
         transition={{ duration: 0.4, ease: [0.4, 0, 0.2, 1] }}
-        className="rounded-2xl p-5 bg-gradient-to-br from-orange-950/30 to-[var(--bg-secondary)] border border-orange-800/20 relative"
+        className="rounded-2xl p-5 bg-orange-50 border border-orange-200 relative"
       >
         <button
           onClick={() => setDismissed(true)}
-          className="absolute top-3 right-3 p-1 text-[var(--text-quaternary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer"
+          className="absolute top-3 right-3 p-1 text-gray-400 hover:text-gray-600 transition-colors cursor-pointer"
         >
           <X size={14} strokeWidth={1.5} />
         </button>
 
         <div className="flex items-start gap-3">
-          <div className="w-9 h-9 rounded-xl bg-[var(--accent-orange)]/10 border border-[var(--accent-orange)]/20 flex items-center justify-center flex-shrink-0">
+          <div className="w-9 h-9 rounded-xl bg-orange-100 border border-orange-200 flex items-center justify-center flex-shrink-0">
             <Rocket size={16} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
           </div>
           <div>
             <h3 className="text-[13px] font-bold text-[var(--text-primary)] mb-1">
               Confidential Bitcoin Accumulation
             </h3>
-            <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
+            <p className="text-[12px] text-[var(--text-secondary)] leading-relaxed mb-3">
               Live on Starknet Sepolia. Execute the full confidential accumulation flow:
             </p>
             <div className="space-y-2">
               <div className="flex items-start gap-2.5">
-                <span className="text-[10px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">01</span>
+                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">01</span>
                 <div>
-                  <span className="text-[11px] text-[var(--text-primary)] font-medium">Acquire Sepolia STRK/ETH for gas</span>
+                  <span className="text-[12px] text-[var(--text-primary)] font-medium">Acquire Sepolia STRK/ETH for gas</span>
                   <a
                     href={STARKNET_FAUCET}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="ml-1.5 inline-flex items-center gap-0.5 text-[10px] text-[var(--accent-orange)] hover:underline"
+                    className="ml-1.5 inline-flex items-center gap-0.5 text-[12px] text-[#FF5A00] hover:underline"
                   >
-                    Faucet <ExternalLink size={8} strokeWidth={2} />
+                    Faucet <ExternalLink size={9} strokeWidth={2} />
                   </a>
                 </div>
               </div>
               <div className="flex items-start gap-2.5">
-                <span className="text-[10px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">02</span>
-                <span className="text-[11px] text-[var(--text-primary)] font-medium">Connect Starknet + Bitcoin wallets</span>
+                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">02</span>
+                <span className="text-[12px] text-[var(--text-primary)] font-medium">Connect Starknet + Bitcoin wallets</span>
               </div>
               <div className="flex items-start gap-2.5">
-                <span className="text-[10px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">03</span>
-                <span className="text-[11px] text-[var(--text-primary)] font-medium">Allocate USDC capital into a privacy pool tranche</span>
+                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">03</span>
+                <span className="text-[12px] text-[var(--text-primary)] font-medium">Allocate USDC capital into a privacy pool tranche</span>
               </div>
               <div className="flex items-start gap-2.5">
-                <span className="text-[10px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">04</span>
-                <span className="text-[11px] text-[var(--text-primary)] font-medium">Execute confidential exit with STARK-verified ZK proof</span>
+                <span className="text-[12px] font-bold text-[var(--accent-orange)] font-[family-name:var(--font-geist-mono)] mt-0.5 flex-shrink-0">04</span>
+                <span className="text-[12px] text-[var(--text-primary)] font-medium">Execute confidential exit with STARK-verified ZK proof</span>
               </div>
             </div>
           </div>

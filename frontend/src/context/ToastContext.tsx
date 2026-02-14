@@ -42,15 +42,15 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const icons = {
-    success: <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-400 flex-shrink-0" />,
-    error: <AlertTriangle size={14} strokeWidth={1.5} className="text-red-400 flex-shrink-0" />,
-    info: <Info size={14} strokeWidth={1.5} className="text-blue-400 flex-shrink-0" />,
+    success: <CheckCircle size={14} strokeWidth={1.5} className="text-emerald-600 flex-shrink-0" />,
+    error: <AlertTriangle size={14} strokeWidth={1.5} className="text-red-600 flex-shrink-0" />,
+    info: <Info size={14} strokeWidth={1.5} className="text-gray-600 flex-shrink-0" />,
   };
 
   const styles = {
-    success: "bg-emerald-950/90 border-emerald-800/40 text-emerald-300",
-    error: "bg-red-950/90 border-red-800/40 text-red-300",
-    info: "bg-blue-950/90 border-blue-800/40 text-blue-300",
+    success: "bg-emerald-50 border-emerald-200 text-emerald-700",
+    error: "bg-red-50 border-red-200 text-red-700",
+    info: "bg-gray-50 border-gray-200 text-gray-700",
   };
 
   return (
@@ -65,13 +65,13 @@ export function ToastProvider({ children }: { children: ReactNode }) {
               animate={{ opacity: 1, y: 0, scale: 1 }}
               exit={{ opacity: 0, y: -10, scale: 0.95 }}
               transition={{ duration: 0.2 }}
-              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border backdrop-blur-sm shadow-lg ${styles[t.type]}`}
+              className={`flex items-center gap-2.5 px-4 py-3 rounded-xl border shadow-lg ${styles[t.type]}`}
             >
               {icons[t.type]}
               <span className="text-[12px] font-medium flex-1">{t.message}</span>
               <button
                 onClick={() => dismiss(t.id)}
-                className="text-white/40 hover:text-white/70 cursor-pointer flex-shrink-0"
+                className="text-gray-400 hover:text-gray-600 cursor-pointer flex-shrink-0"
               >
                 <X size={12} strokeWidth={1.5} />
               </button>

@@ -74,8 +74,8 @@ const WEB_APP_BASE = process.env.WEB_APP_URL ?? "http://localhost:3000";
 
 const EXPLORER_BASE =
   network === "mainnet"
-    ? "https://starkscan.co"
-    : "https://sepolia.starkscan.co";
+    ? "https://voyager.online"
+    : "https://sepolia.voyager.online";
 
 if (!BOT_TOKEN) {
   console.error("[bot] TELEGRAM_BOT_TOKEN not set in .env");

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useSearchParams } from "next/navigation";
-import { ArrowRight, ShieldCheck, ChevronRight, Brain } from "lucide-react";
+import { ShieldCheck, Shield, Unlock, Brain } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import ShieldForm from "./ShieldForm";
 import UnveilForm from "./UnveilForm";
@@ -29,11 +29,11 @@ export default function TabPanel() {
 
   if (showCompliance) {
     return (
-      <div className="glass-card overflow-hidden">
+      <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
         <div className="p-4 sm:p-6">
           <button
             onClick={() => setShowCompliance(false)}
-            className="text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer mb-4 flex items-center gap-1"
+            className="text-[12px] text-gray-400 hover:text-gray-700 transition-colors cursor-pointer mb-4 flex items-center gap-1"
           >
             &larr; Back
           </button>
@@ -44,56 +44,54 @@ export default function TabPanel() {
   }
 
   return (
-    <div className="glass-card overflow-hidden">
-      {/* Step Indicator */}
+    <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+      {/* Tab Bar */}
       <div className="px-4 sm:px-6 pt-4 sm:pt-6">
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => setStep(1)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-all cursor-pointer ${
-              step === 1
-                ? "bg-[var(--accent-orange)] text-white"
-                : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-              step === 1 ? "bg-white/20" : "bg-[var(--bg-tertiary)]"
-            }`}>1</span>
-            Allocate Capital
-          </button>
-          <ArrowRight size={14} strokeWidth={1.5} className="text-[var(--text-quaternary)]" />
-          <button
-            onClick={() => setStep(2)}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-all cursor-pointer ${
-              step === 2
-                ? "bg-[var(--accent-orange)] text-white"
-                : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)] hover:text-[var(--text-primary)]"
-            }`}
-          >
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold ${
-              step === 2 ? "bg-white/20" : "bg-[var(--bg-tertiary)]"
-            }`}>2</span>
-            Confidential Exit
-          </button>
-          <div className="flex-1" />
-          <button
-            onClick={() => setStep("agent")}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-[12px] font-semibold transition-all cursor-pointer ${
-              step === "agent"
-                ? "bg-purple-600 text-white"
-                : "bg-purple-950/30 text-purple-400 border border-purple-800/30 hover:bg-purple-950/50"
-            }`}
-          >
-            <Brain size={13} strokeWidth={1.5} />
-            AI Strategist
-          </button>
+          {/* Segmented Control */}
+          <div className="flex gap-1 p-1 bg-gray-100 rounded-xl flex-1">
+            <button
+              onClick={() => setStep(1)}
+              className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                step === 1
+                  ? "bg-[#FF5A00] text-white rounded-lg font-semibold"
+                  : "text-gray-600 hover:bg-gray-200 rounded-lg font-medium"
+              }`}
+            >
+              <Shield size={14} strokeWidth={1.5} />
+              Shield
+            </button>
+            <button
+              onClick={() => setStep(2)}
+              className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                step === 2
+                  ? "bg-[#FF5A00] text-white rounded-lg font-semibold"
+                  : "text-gray-600 hover:bg-gray-200 rounded-lg font-medium"
+              }`}
+            >
+              <Unlock size={14} strokeWidth={1.5} />
+              Unveil
+            </button>
+            <button
+              onClick={() => setStep("agent")}
+              className={`flex-1 py-2.5 text-sm text-center transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                step === "agent"
+                  ? "bg-[#FF5A00] text-white rounded-lg font-semibold"
+                  : "text-gray-600 hover:bg-gray-200 rounded-lg font-medium"
+              }`}
+            >
+              <Brain size={14} strokeWidth={1.5} />
+              Strategist
+            </button>
+          </div>
+
+          {/* Compliance icon button */}
           <button
             onClick={() => setShowCompliance(true)}
-            className="text-[10px] text-[var(--text-quaternary)] hover:text-[var(--text-secondary)] transition-colors cursor-pointer flex items-center gap-1"
+            className="p-2 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all cursor-pointer"
+            title="Compliance"
           >
-            <ShieldCheck size={10} strokeWidth={1.5} />
-            Compliance
-            <ChevronRight size={10} strokeWidth={1.5} />
+            <ShieldCheck size={18} strokeWidth={1.5} />
           </button>
         </div>
       </div>

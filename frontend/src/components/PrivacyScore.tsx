@@ -40,28 +40,26 @@ export default function PrivacyScore(props: PrivacyScoreProps) {
   const offset = circumference - (score / 100) * circumference;
 
   return (
-    <div className="glass-card p-6">
+    <div>
       <div className="flex items-center gap-1.5 mb-4">
-        <ShieldCheck size={12} strokeWidth={1.5} className="text-[var(--text-tertiary)]" />
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
-          Protocol Privacy Score
+        <ShieldCheck size={12} strokeWidth={1.5} className="text-gray-400" />
+        <span className="text-xs font-semibold text-gray-500">
+          Privacy Score
         </span>
       </div>
 
-      <div className="flex items-center gap-6">
+      <div className="flex flex-col items-center gap-3">
         {/* Circular Progress */}
         <div className="relative flex-shrink-0">
           <svg width="100" height="100" viewBox="0 0 100 100">
-            {/* Background circle */}
             <circle
               cx="50"
               cy="50"
               r={radius}
               fill="none"
-              stroke="var(--bg-tertiary)"
+              stroke="#F3F4F6"
               strokeWidth="6"
             />
-            {/* Progress arc */}
             <motion.circle
               cx="50"
               cy="50"
@@ -79,7 +77,7 @@ export default function PrivacyScore(props: PrivacyScoreProps) {
           </svg>
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <motion.span
-              className="text-[24px] font-[family-name:var(--font-geist-mono)] font-bold font-tabular"
+              className="text-2xl font-[family-name:var(--font-geist-mono)] font-bold font-tabular"
               style={{ color }}
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
@@ -87,22 +85,20 @@ export default function PrivacyScore(props: PrivacyScoreProps) {
             >
               {score}
             </motion.span>
-            <span className="text-[9px] text-[var(--text-tertiary)] font-medium uppercase tracking-wider">
-              / 100
-            </span>
+            <span className="text-[10px] text-gray-400 font-medium">/ 100</span>
           </div>
         </div>
 
-        {/* Breakdown */}
-        <div className="flex-1 space-y-2">
-          <div className="text-[13px] font-semibold" style={{ color }}>
+        {/* Label + Breakdown */}
+        <div className="w-full space-y-2">
+          <div className="text-sm font-semibold text-center" style={{ color }}>
             {label}
           </div>
-          <div className="space-y-1.5">
+          <div className="space-y-1">
             {items.map(({ label, value, max }) => (
               <div key={label} className="flex items-center justify-between">
-                <span className="text-[10px] text-[var(--text-tertiary)]">{label}</span>
-                <span className="text-[10px] font-[family-name:var(--font-geist-mono)] text-[var(--text-secondary)] font-tabular">
+                <span className="text-xs text-gray-400">{label}</span>
+                <span className="text-xs font-[family-name:var(--font-geist-mono)] text-gray-600 font-tabular">
                   {value}/{max}
                 </span>
               </div>

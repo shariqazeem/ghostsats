@@ -291,32 +291,29 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
             className="flex flex-col items-center justify-center py-16 gap-6"
           >
             {phase === "batch_done" ? (
-              <div className="w-24 h-24 rounded-full bg-emerald-950/30 border border-emerald-800/30 flex items-center justify-center">
-                <CheckCircle size={32} strokeWidth={1.5} className="text-emerald-400" />
+              <div className="w-24 h-24 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+                <CheckCircle size={32} strokeWidth={1.5} className="text-emerald-600" />
               </div>
             ) : (
               <div
                 className="w-24 h-24 rounded-full animate-processing-orb"
                 style={{
-                  background: "radial-gradient(circle at 40% 35%, #2A2A30 0%, #1A1A1F 50%, #131316 100%)",
-                  boxShadow: phase === "executing_batch"
-                    ? "0 0 60px rgba(16, 185, 129, 0.15)"
-                    : "0 0 60px rgba(255, 90, 0, 0.1)",
-                  border: "1px solid rgba(255, 255, 255, 0.06)",
+                  background: "radial-gradient(circle at 40% 35%, #FFF7ED 0%, #FFEDD5 50%, #FED7AA 100%)",
+                  border: "1px solid #FDBA74",
                 }}
               />
             )}
             <div className="text-center space-y-1.5">
-              <p className="text-[13px] font-medium text-[var(--text-primary)]">
+              <p className="text-[13px] font-medium text-gray-900">
                 {PHASE_LABELS[phase]}
               </p>
               {phase === "executing_batch" && (
-                <p className="text-[11px] text-emerald-400/60">
+                <p className="text-xs text-emerald-600/60">
                   Swapping via AVNU at live market rate
                 </p>
               )}
               {phase !== "batch_done" && (
-                <p className="text-[11px] text-[var(--text-tertiary)]">
+                <p className="text-xs text-gray-400">
                   Do not close this window
                 </p>
               )}
@@ -337,11 +334,11 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                     : false;
                 return (
                   <div key={step} className="flex items-center gap-2">
-                    {i > 0 && <div className={`w-6 h-px ${isDone || isActive ? "bg-emerald-500" : "bg-[var(--border-subtle)]"}`} />}
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium ${
-                      isDone ? "bg-emerald-950/30 text-emerald-400 border border-emerald-800/30"
-                        : isActive ? "bg-[var(--accent-orange)]/10 text-[var(--accent-orange)] border border-[var(--accent-orange)]/30"
-                        : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]"
+                    {i > 0 && <div className={`w-6 h-px ${isDone || isActive ? "bg-emerald-500" : "bg-gray-200"}`} />}
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium ${
+                      isDone ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        : isActive ? "bg-orange-50 text-[#FF5A00] border border-[#FF5A00]/30"
+                        : "bg-gray-100 text-gray-400 border border-gray-200"
                     }`}>
                       {isDone && <CheckCircle size={10} strokeWidth={2} />}
                       {isActive && <Loader size={10} strokeWidth={2} className="animate-spin" />}
@@ -366,56 +363,56 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
               <motion.div
                 initial={{ opacity: 0, y: -8 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="rounded-2xl p-4 bg-orange-950/20 border border-orange-800/20"
+                className="rounded-2xl p-4 bg-orange-50 border border-orange-200"
               >
                 <div className="flex items-start gap-3">
-                  <div className="w-8 h-8 rounded-xl bg-orange-950/40 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    <Droplets size={14} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
+                  <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <Droplets size={14} strokeWidth={1.5} className="text-[#FF5A00]" />
                   </div>
                   <div className="flex-1 min-w-0">
                     {isLiveMode ? (
                       <>
-                        <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">
+                        <p className="text-[12px] font-semibold text-gray-900 mb-0.5">
                           Get Sepolia USDC
                         </p>
-                        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-2">
+                        <p className="text-xs text-gray-600 leading-relaxed mb-2">
                           This demo uses real Sepolia testnet USDC:
                         </p>
-                        <ol className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3 list-decimal list-inside space-y-1">
+                        <ol className="text-xs text-gray-600 leading-relaxed mb-3 list-decimal list-inside space-y-1">
                           <li>Get Sepolia ETH from a{" "}
-                            <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">faucet</a>
+                            <a href="https://cloud.google.com/application/web3/faucet/ethereum/sepolia" target="_blank" rel="noopener noreferrer" className="text-[#FF5A00] hover:underline">faucet</a>
                           </li>
                           <li>Get Sepolia USDC from{" "}
-                            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">Circle Faucet</a>
+                            <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-[#FF5A00] hover:underline">Circle Faucet</a>
                           </li>
                           <li>Bridge to Starknet via{" "}
-                            <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">StarkGate</a>
+                            <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[#FF5A00] hover:underline">StarkGate</a>
                           </li>
                         </ol>
-                        <span className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
+                        <span className="text-xs text-gray-300 font-[family-name:var(--font-geist-mono)]">
                           Balance: {balance.toLocaleString()} USDC
                         </span>
                       </>
                     ) : (
                       <>
-                        <p className="text-[12px] font-semibold text-[var(--text-primary)] mb-0.5">
+                        <p className="text-[12px] font-semibold text-gray-900 mb-0.5">
                           Get Test USDC
                         </p>
-                        <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
+                        <p className="text-xs text-gray-600 leading-relaxed mb-3">
                           Mint free test USDC to try the full accumulation flow.
                         </p>
                         <div className="flex items-center gap-3">
                           <motion.button
                             onClick={handleMintUsdc}
                             disabled={minting || !address}
-                            className="px-4 py-2 bg-[var(--accent-orange)] text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
+                            className="px-4 py-2 bg-[#FF5A00] text-white rounded-xl text-[12px] font-semibold cursor-pointer disabled:opacity-50 flex items-center gap-1.5"
                             whileTap={{ scale: 0.97 }}
                             transition={spring}
                           >
                             <Droplets size={12} strokeWidth={2} />
                             {minting ? "Minting..." : "Mint 100K USDC"}
                           </motion.button>
-                          <span className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
+                          <span className="text-xs text-gray-300 font-[family-name:var(--font-geist-mono)]">
                             Balance: {balance.toLocaleString()} USDC
                           </span>
                         </div>
@@ -429,10 +426,10 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
             {/* USDC Balance */}
             {isConnected && balance >= 100 && (
               <div className="flex items-center justify-between px-1">
-                <span className="text-[11px] text-[var(--text-tertiary)]">
+                <span className="text-xs text-gray-400">
                   {isLiveMode ? `${NETWORK_LABEL} USDC Balance` : "Test USDC Balance"}
                 </span>
-                <span className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-[var(--text-primary)] font-tabular">
+                <span className="text-[12px] font-[family-name:var(--font-geist-mono)] font-semibold text-gray-900 font-tabular">
                   {balance.toLocaleString()} USDC
                 </span>
               </div>
@@ -440,7 +437,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
 
             {/* Tranche Selector */}
             <div className="space-y-3">
-              <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)] block">
+              <span className="text-xs font-semibold text-gray-400 block">
                 Select Capital Tier
               </span>
               <div className="grid grid-cols-3 gap-2">
@@ -455,8 +452,8 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                       onClick={() => setSelectedTier(tierNum)}
                       className={`relative py-4 rounded-xl text-center transition-all cursor-pointer border ${
                         isSelected
-                          ? "bg-[var(--accent-orange)] text-white border-[var(--accent-orange)]"
-                          : "bg-[var(--bg-secondary)] text-[var(--text-primary)] border-[var(--border-subtle)] hover:border-[var(--text-tertiary)]"
+                          ? "bg-[#FF5A00] text-white border-[#FF5A00]"
+                          : "bg-gray-50 text-gray-900 border-gray-200 hover:border-gray-400"
                       }`}
                       whileTap={{ scale: 0.97 }}
                       transition={spring}
@@ -464,26 +461,26 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                       <div className="text-[22px] font-[family-name:var(--font-geist-mono)] font-bold tracking-tight font-tabular">
                         {usdcAmount.toLocaleString()}
                       </div>
-                      <div className={`text-[11px] mt-0.5 font-medium ${
-                        isSelected ? "text-white/60" : "text-[var(--text-tertiary)]"
+                      <div className={`text-xs mt-0.5 font-medium ${
+                        isSelected ? "text-white/60" : "text-gray-400"
                       }`}>
                         USDC
                       </div>
                       {btcEstimate !== null && (
-                        <div className={`text-[10px] mt-0.5 font-[family-name:var(--font-geist-mono)] ${
-                          isSelected ? "text-white/40" : "text-[var(--text-quaternary)]"
+                        <div className={`text-xs mt-0.5 font-[family-name:var(--font-geist-mono)] ${
+                          isSelected ? "text-white/40" : "text-gray-300"
                         }`}>
                           ~{btcEstimate.toFixed(btcEstimate < 0.01 ? 5 : 3)} BTC
                         </div>
                       )}
-                      <div className={`text-[10px] mt-1 font-medium ${
+                      <div className={`text-xs mt-1 font-medium ${
                         isSelected
                           ? "text-white/50"
                           : anonSets[tierNum] >= 10
                             ? "text-emerald-500"
                             : anonSets[tierNum] >= 3
                               ? "text-amber-500"
-                              : "text-[var(--text-tertiary)]"
+                              : "text-gray-400"
                       }`}>
                         {anonSets[tierNum]} in pool
                       </div>
@@ -491,11 +488,11 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                   );
                 })}
               </div>
-              <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--text-tertiary)]">
+              <div className="flex items-center justify-center gap-2 text-xs text-gray-400">
                 <span>Standardized capital tiers — all allocations are indistinguishable</span>
               </div>
               {btcPrice && (
-                <div className="flex items-center justify-center gap-1.5 text-[10px] text-[var(--text-quaternary)]">
+                <div className="flex items-center justify-center gap-1.5 text-xs text-gray-300">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   BTC ${btcPrice.toLocaleString()} — live rate applied at conversion
                 </div>
@@ -506,10 +503,10 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
             <motion.button
               onClick={handleAccumulate}
               disabled={!canAccumulate}
-              className="w-full py-4.5 bg-[var(--accent-orange)] text-white rounded-2xl text-[15px] font-semibold tracking-tight
+              className="w-full py-4.5 bg-[#FF5A00] text-white rounded-2xl text-[15px] font-semibold tracking-tight
                          disabled:opacity-20 disabled:cursor-not-allowed
                          cursor-pointer transition-all flex items-center justify-center gap-2"
-              whileHover={canAccumulate ? { y: -1, boxShadow: "var(--shadow-xl)" } : {}}
+              whileHover={canAccumulate ? { y: -1, boxShadow: "0 4px 12px rgba(0,0,0,0.1)" } : {}}
               whileTap={canAccumulate ? { scale: 0.985 } : {}}
               transition={spring}
             >
@@ -519,7 +516,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
 
             {/* Wallet Hints */}
             {!isConnected && (
-              <p className="text-[12px] text-[var(--text-tertiary)] text-center">
+              <p className="text-[12px] text-gray-400 text-center">
                 Connect your Starknet wallet to begin
               </p>
             )}
@@ -543,17 +540,17 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
           >
             <div className={`rounded-2xl p-5 ${
               phase === "success"
-                ? "bg-emerald-950/20 border border-emerald-800/20"
-                : "bg-red-950/30 border border-red-900/30"
+                ? "bg-emerald-50 border border-emerald-200"
+                : "bg-red-50 border border-red-200"
             }`}>
               <div className="flex items-center gap-2.5">
                 {phase === "success" ? (
-                  <CheckCircle size={16} strokeWidth={1.5} className="text-emerald-400" />
+                  <CheckCircle size={16} strokeWidth={1.5} className="text-emerald-600" />
                 ) : (
                   <AlertTriangle size={14} strokeWidth={1.5} className="text-red-500" />
                 )}
                 <span className={`text-[13px] font-medium ${
-                  phase === "success" ? "text-emerald-400" : "text-red-400"
+                  phase === "success" ? "text-emerald-700" : "text-red-700"
                 }`}>
                   {PHASE_LABELS[phase]}
                 </span>
@@ -563,7 +560,7 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                   href={`${EXPLORER_TX}${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] font-[family-name:var(--font-geist-mono)]"
+                  className="mt-2 flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 font-[family-name:var(--font-geist-mono)]"
                 >
                   Deposit tx &rarr;
                 </a>
@@ -573,22 +570,22 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                   href={`${EXPLORER_TX}${batchTxHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-1 flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] font-[family-name:var(--font-geist-mono)]"
+                  className="mt-1 flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-600 font-[family-name:var(--font-geist-mono)]"
                 >
                   Conversion tx &rarr;
                 </a>
               )}
               {error && phase === "error" && (
-                <p className="mt-2 text-[11px] text-red-500 break-all">{error}</p>
+                <p className="mt-2 text-xs text-red-500 break-all">{error}</p>
               )}
               {phase === "success" && (
                 <div className="mt-3 space-y-3">
                   {batchTxHash ? (
-                    <p className="text-[11px] text-emerald-400/70">
+                    <p className="text-xs text-emerald-700">
                       Capital converted. Proceed to <strong>Confidential Exit</strong> to claim BTC.
                     </p>
                   ) : (
-                    <p className="text-[11px] text-[var(--text-tertiary)]">
+                    <p className="text-xs text-gray-400">
                       Capital allocated to privacy pool. Batch conversion will execute automatically.
                       Once converted, use <strong>Confidential Exit</strong> to claim BTC.
                     </p>
@@ -596,14 +593,14 @@ export default function ShieldForm({ onComplete }: ShieldFormProps) {
                   <div className="flex gap-3">
                     <button
                       onClick={() => { setPhase("idle"); setTxHash(null); setBatchTxHash(null); }}
-                      className="text-[12px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                      className="text-[12px] font-medium text-gray-400 hover:text-gray-900 transition-colors cursor-pointer"
                     >
                       Allocate more
                     </button>
                     {batchTxHash && onComplete && (
                       <button
                         onClick={onComplete}
-                        className="text-[12px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer flex items-center gap-1"
+                        className="text-[12px] font-semibold text-emerald-600 hover:text-emerald-500 transition-colors cursor-pointer flex items-center gap-1"
                       >
                         Confidential Exit <ArrowRight size={12} strokeWidth={2} />
                       </button>

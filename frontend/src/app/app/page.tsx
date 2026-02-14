@@ -21,12 +21,12 @@ export default function AppPage() {
         <div className="h-px bg-[var(--border-subtle)] max-w-xs mx-auto mb-6" />
         <div className="flex items-center justify-center gap-4 mb-2">
           {["Built on Starknet", "STARK-Verified ZK Proofs", "Bitcoin-Native Liquidity"].map((item) => (
-            <span key={item} className="text-[10px] text-[var(--text-quaternary)] font-medium">
+            <span key={item} className="text-xs text-gray-400 font-medium">
               {item}
             </span>
           ))}
         </div>
-        <p className="text-[10px] text-[var(--text-quaternary)]">
+        <p className="text-xs text-gray-400">
           Veil Protocol &middot; Confidential Bitcoin Accumulation Infrastructure
         </p>
       </footer>

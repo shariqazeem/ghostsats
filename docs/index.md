@@ -3,36 +3,36 @@ layout: home
 
 hero:
   name: Veil Protocol
-  text: Bitcoin's Privacy Layer
-  tagline: Gasless private USDC-to-WBTC execution on Starknet. ZK proofs verified on-chain. Secrets never touch calldata.
+  text: Confidential Bitcoin Accumulation
+  tagline: Private USDC-to-BTC execution on Starknet with on-chain ZK proofs, an AI strategy agent, and a Telegram bot. Gasless. Unlinkable. Verifiable.
   actions:
     - theme: brand
       text: How It Works
       link: /guide/how-it-works
     - theme: alt
-      text: ZK Integration
-      link: /technical/zk-integration
+      text: AI Strategist
+      link: /guide/ai-strategist
     - theme: alt
       text: Launch App
       link: https://theveilprotocol.vercel.app/app
 
 features:
-  - icon: 🔐
+  - icon: "\uD83D\uDD10"
     title: ZK Proofs Verified On-Chain
-    details: Noir circuit → Barretenberg prover → Garaga UltraKeccakZKHonk verifier. 2835 felt252 calldata elements. Real verification, not mock.
-  - icon: ⚡
+    details: Noir circuit compiled to UltraKeccakZKHonk proof via bb.js WASM, verified on-chain by Garaga. 2,835 felt252 calldata elements. In-browser proving -- secrets never leave your device.
+  - icon: "\uD83E\uDDE0"
+    title: AI Strategy Agent
+    details: Five strategy types -- privacy-first, efficiency, stealth DCA, whale distribution, and balanced. Natural language input generates optimized accumulation plans with live pool analytics.
+  - icon: "\u26A1"
     title: Gasless Withdrawals
-    details: Relayer submits your withdrawal tx. You never sign. No gas payment = no on-chain footprint linking you to the deposit.
-  - icon: 🌊
+    details: Relayer submits your withdrawal transaction. You never sign. No gas payment means no on-chain footprint linking you to the original deposit.
+  - icon: "\uD83D\uDCF1"
+    title: Telegram Bot
+    details: "@VeilStrategistBot -- plan and execute accumulation strategies directly from Telegram. Live BTC price, pool analytics, and deep-link execution to the web app."
+  - icon: "\uD83C\uDF0A"
     title: Anonymity Sets
-    details: Fixed denominations (100 / 1K / 10K USDC) make all deposits in a tier indistinguishable. More users = exponentially stronger privacy.
-  - icon: ₿
+    details: "Fixed denominations ($1 / $10 / $100 USDC) make all deposits in a tier indistinguishable. More participants per tier means exponentially stronger privacy."
+  - icon: "\u20BF"
     title: Bitcoin Identity Binding
-    details: Dual wallet — Starknet (Argent/Braavos) + Bitcoin (Xverse). BTC wallet cryptographically signs each deposit commitment.
-  - icon: 🛡️
-    title: No Secrets in Calldata
-    details: Pedersen commitments (Stark field) + Poseidon BN254 ZK commitments. Secret and blinder never appear on-chain.
-  - icon: ✅
-    title: Compliance Escape Hatch
-    details: Optional view keys + exportable JSON proofs let users prove transaction history to regulators when needed.
+    details: Dual wallet -- Starknet (Argent/Braavos) + Bitcoin (Xverse). Your BTC wallet cryptographically signs each deposit commitment. Intent settlement bridges to native Bitcoin.
 ---

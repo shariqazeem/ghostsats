@@ -1,42 +1,66 @@
 # Testing
 
-Veil Protocol has 40 passing tests covering the full protocol.
+Veil Protocol has 52 passing tests covering the full protocol.
 
 ```bash
 cd contracts && snforge test
-# Tests: 40 passed, 0 failed, 0 ignored, 0 filtered out
+# Tests: 52 passed, 0 failed, 0 ignored, 0 filtered out
 ```
 
 ## Test Suites
 
-### Core Engine (13 tests)
+### Core Engine (14 tests)
+
+**File**: `tests/test_dark_engine.cairo`
 
 Tests the fundamental protocol mechanics:
 
-- Denomination validation (100 / 1K / 10K USDC)
-- Deposit flow with Pedersen commitments
-- Batch execution via Avnu router
-- Merkle tree construction and root computation
+- Three-user deposit and batch execution flow
+- Multiple sequential batches
+- Non-owner batch execution rejection
+- Empty batch rejection
+- Duplicate commitment rejection
+- Invalid denomination rejection
+- Denomination amounts ($1 / $10 / $100 USDC)
+- Merkle root updates on deposit
+- View key registration
+- Correct leaf retrieval by index
 - Anonymity set tracking per denomination tier
-- BTC identity hash binding
+- BTC identity hash stored on deposit
+- Zero BTC identity not counted
+- BTC-linked deposit counter increments
 
 ### Withdrawal (16 tests)
 
-Tests the complete deposit → execute → withdraw cycle:
+**File**: `tests/test_withdrawal.cairo`
 
-- Full lifecycle: deposit → batch execute → withdraw
-- Invalid preimage rejection
+Tests the complete deposit-execute-withdraw cycle:
+
+- Full lifecycle: deposit, batch execute, withdraw with Merkle proof
+- Two-user withdrawal with independent Merkle proofs
+- Withdrawal with exchange rate computation
 - Double-spend prevention (nullifier reuse)
-- Timing delay enforcement (60s minimum)
-- Relayer fee calculation (2% default, 5% cap)
-- Exchange rate computation
-- BTC withdrawal intent
+- Invalid preimage rejection
+- Cannot withdraw before batch finalized
+- Wrong nullifier rejection
+- Relayer withdrawal with fee calculation (2% default)
+- Relayer withdrawal with zero fee
+- Excessive relayer fee rejection (5% cap)
+- Withdrawal too early (timing delay enforcement, 60s minimum)
+- Withdrawal delay view function
+- Max relayer fee view function
+- Withdrawal with BTC intent creates escrow
+- Merkle proof wrong length rejection
+- Relayer withdrawal with BTC intent creates escrow
 
 ### ZK Privacy (11 tests)
 
+**File**: `tests/test_zk_privacy.cairo`
+
 Tests the ZK-specific functionality:
 
-- `deposit_private` → `withdraw_private` full flow
+- `deposit_private` stores ZK commitment mapping
+- `deposit_private` to `withdraw_private` full flow
 - ZK double-spend rejection (same nullifier)
 - Wrong ZK commitment rejection
 - Timing delay with ZK withdrawals
@@ -44,7 +68,26 @@ Tests the ZK-specific functionality:
 - Backward compatibility with legacy deposits (no ZK)
 - Duplicate ZK commitment rejection
 - BTC identity with ZK deposits
-- Zero commitment rejection
+- Zero ZK commitment rejection
+- ZK withdrawal with BTC intent creates escrow
+
+### Intent Escrow (11 tests)
+
+**File**: `tests/test_intent_escrow.cairo`
+
+Tests the BTC intent settlement system:
+
+- `withdraw_with_btc_intent` creates intent lock
+- `claim_intent` sets solver address
+- Oracle confirmation and release to solver
+- Intent expiration refunds recipient
+- Double claim rejection
+- Non-oracle confirmation rejection
+- Cannot expire before timeout
+- Oracle configuration update
+- Oracle revocation on reconfiguration
+- Minimum timeout enforcement
+- Full intent lifecycle (create, claim, confirm, release)
 
 ## Running Tests
 
@@ -58,9 +101,10 @@ snforge test
 ### Specific Test File
 
 ```bash
-snforge test --filter test_dark_engine    # Core engine tests
-snforge test --filter test_withdrawal     # Withdrawal tests
-snforge test --filter test_zk_privacy     # ZK privacy tests
+snforge test --filter test_dark_engine       # Core engine tests
+snforge test --filter test_withdrawal        # Withdrawal tests
+snforge test --filter test_zk_privacy        # ZK privacy tests
+snforge test --filter test_intent_escrow     # Intent escrow tests
 ```
 
 ### Garaga Verifier Fork Test
@@ -100,11 +144,11 @@ Tests use `snforge_std` utilities:
 // 1. Deploy mock tokens + pool
 let (pool, usdc, wbtc, router) = deploy_test_suite();
 
-// 2. Mint USDC to depositor
-usdc.mint(depositor, 1_000_000_000); // 1000 USDC
+// 2. Mint USDC to depositor ($10 = 10,000,000 raw)
+usdc.mint(depositor, 10_000_000);
 
 // 3. Approve + deposit
-usdc.approve(pool, 1_000_000_000);
+usdc.approve(pool, 10_000_000);
 pool.deposit_private(commitment, 1, btc_hash, zk_commitment);
 
 // 4. Execute batch
@@ -116,3 +160,11 @@ set_block_timestamp(current_time + 61);
 // 6. Withdraw with ZK proof
 pool.withdraw_private(1, nullifier, zk_commitment, proof, merkle_path, indices, recipient, 0);
 ```
+
+### Denomination Reference for Tests
+
+| Tier | Label | Raw Amount (USDC 6 decimals) |
+|------|-------|------------------------------|
+| 0 | $1 | 1,000,000 |
+| 1 | $10 | 10,000,000 |
+| 2 | $100 | 100,000,000 |

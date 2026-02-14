@@ -82,10 +82,10 @@ export default function WalletBar() {
   const bothConnected = !!starknetAddress && !!bitcoinAddress;
 
   return (
-    <header className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 py-4 sm:py-5">
+    <header className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 py-4 sm:py-5 bg-white/80 backdrop-blur-md border-b border-gray-200">
       <div className="max-w-3xl mx-auto flex items-center justify-between">
         {/* Wordmark */}
-        <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
+        <span className="text-lg font-bold tracking-tight text-gray-900">
           Veil<span className="text-[var(--accent-orange)]"> Protocol</span>
         </span>
 
@@ -93,22 +93,22 @@ export default function WalletBar() {
         <div ref={ref} className="relative">
           <motion.button
             onClick={() => setOpen(!open)}
-            className="flex items-center gap-0 rounded-full bg-[var(--bg-secondary)] shadow-[var(--shadow-md)] hover:shadow-[var(--shadow-lg)] transition-shadow cursor-pointer overflow-hidden border border-[var(--border-subtle)]"
+            className="flex items-center gap-0 rounded-full bg-white border border-gray-200 shadow-sm hover:shadow-md transition-shadow cursor-pointer overflow-hidden"
             whileTap={{ scale: 0.97 }}
             transition={spring}
           >
             {/* Starknet side */}
-            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5 border-r border-[var(--border-subtle)]">
-              <Shield size={13} strokeWidth={1.5} className="text-[var(--text-secondary)]" />
+            <div className="flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-4 py-2 sm:py-2.5 border-r border-gray-200">
+              <Shield size={13} strokeWidth={1.5} className="text-gray-500" />
               {starknetAddress ? (
                 <>
-                  <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]">
+                  <span className="hidden sm:inline text-[13px] font-medium text-gray-900 font-[family-name:var(--font-geist-mono)]">
                     {truncateAddress(starknetAddress)}
                   </span>
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
                 </>
               ) : (
-                <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-tertiary)]">Starknet</span>
+                <span className="hidden sm:inline text-[13px] font-medium text-gray-400">Starknet</span>
               )}
             </div>
 
@@ -117,20 +117,20 @@ export default function WalletBar() {
               <Bitcoin size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
               {bitcoinAddress ? (
                 <>
-                  <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-primary)] font-[family-name:var(--font-geist-mono)]">
+                  <span className="hidden sm:inline text-[13px] font-medium text-gray-900 font-[family-name:var(--font-geist-mono)]">
                     {truncateAddress(bitcoinAddress)}
                   </span>
                   <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
                 </>
               ) : (
-                <span className="hidden sm:inline text-[13px] font-medium text-[var(--text-tertiary)]">Bitcoin</span>
+                <span className="hidden sm:inline text-[13px] font-medium text-gray-400">Bitcoin</span>
               )}
             </div>
           </motion.button>
 
           {/* If neither connected, show subtle label */}
           {!starknetAddress && !bitcoinAddress && (
-            <div className="absolute -bottom-6 right-0 text-[11px] text-[var(--text-tertiary)] whitespace-nowrap">
+            <div className="absolute -bottom-6 right-0 text-[12px] text-gray-400 whitespace-nowrap">
               Connect Identity
             </div>
           )}
@@ -143,15 +143,15 @@ export default function WalletBar() {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, y: 6, scale: 0.97 }}
                 transition={spring}
-                className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-80 glass-card p-5 z-50"
+                className="absolute right-0 mt-3 w-[calc(100vw-2rem)] sm:w-80 max-w-80 bg-white rounded-xl border border-gray-200 shadow-lg p-5 z-50"
               >
                 <div className="flex items-center justify-between mb-5">
-                  <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
+                  <span className="text-[12px] font-semibold text-gray-400">
                     Identity
                   </span>
                   <button
                     onClick={() => setOpen(false)}
-                    className="text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                    className="text-gray-400 hover:text-gray-900 transition-colors cursor-pointer"
                   >
                     <X size={14} />
                   </button>
@@ -160,8 +160,8 @@ export default function WalletBar() {
                 {/* Starknet Section */}
                 <div className="mb-5">
                   <div className="flex items-center gap-2 mb-2.5">
-                    <Shield size={13} strokeWidth={1.5} className="text-[var(--text-secondary)]" />
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
+                    <Shield size={13} strokeWidth={1.5} className="text-gray-500" />
+                    <span className="text-[12px] font-semibold text-gray-500">
                       Starknet
                     </span>
                     {starknetAddress && (
@@ -169,13 +169,13 @@ export default function WalletBar() {
                     )}
                   </div>
                   {starknetAddress ? (
-                    <div className="flex items-center justify-between bg-[var(--bg-secondary)] rounded-xl px-3.5 py-3">
-                      <span className="text-[13px] font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">
+                    <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3.5 py-3">
+                      <span className="text-[13px] font-[family-name:var(--font-geist-mono)] text-gray-900">
                         {truncateAddress(starknetAddress, 6)}
                       </span>
                       <button
                         onClick={() => disconnect()}
-                        className="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                        className="text-[12px] font-medium text-gray-400 hover:text-gray-900 transition-colors cursor-pointer"
                       >
                         Disconnect
                       </button>
@@ -186,7 +186,7 @@ export default function WalletBar() {
                         <button
                           key={connector.id}
                           onClick={() => connect({ connector })}
-                          className="w-full text-left px-3.5 py-3 bg-[var(--bg-secondary)] rounded-xl text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors cursor-pointer"
+                          className="w-full text-left px-3.5 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 transition-colors cursor-pointer"
                         >
                           {connector.name}
                         </button>
@@ -196,27 +196,27 @@ export default function WalletBar() {
                 </div>
 
                 {/* Separator */}
-                <div className="h-px bg-[var(--border-subtle)] mb-5" />
+                <div className="h-px bg-gray-200 mb-5" />
 
                 {/* Bitcoin Section */}
                 <div>
                   <div className="flex items-center gap-2 mb-2.5">
                     <Bitcoin size={13} strokeWidth={1.5} className="text-[var(--accent-orange)]" />
-                    <span className="text-[11px] font-semibold uppercase tracking-wider text-[var(--text-secondary)]">
-                      Bitcoin <span className="text-[var(--text-quaternary)] normal-case tracking-normal">(optional)</span>
+                    <span className="text-[12px] font-semibold text-gray-500">
+                      Bitcoin <span className="text-gray-400">(optional)</span>
                     </span>
                     {bitcoinAddress && (
                       <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
                     )}
                   </div>
                   {bitcoinAddress ? (
-                    <div className="flex items-center justify-between bg-[var(--bg-secondary)] rounded-xl px-3.5 py-3">
-                      <span className="text-[13px] font-[family-name:var(--font-geist-mono)] text-[var(--text-primary)]">
+                    <div className="flex items-center justify-between bg-gray-50 rounded-xl px-3.5 py-3">
+                      <span className="text-[13px] font-[family-name:var(--font-geist-mono)] text-gray-900">
                         {truncateAddress(bitcoinAddress, 6)}
                       </span>
                       <button
                         onClick={() => setBitcoinAddress(null)}
-                        className="text-[11px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                        className="text-[12px] font-medium text-gray-400 hover:text-gray-900 transition-colors cursor-pointer"
                       >
                         Disconnect
                       </button>
@@ -226,12 +226,12 @@ export default function WalletBar() {
                       <button
                         onClick={connectBitcoin}
                         disabled={btcLoading}
-                        className="w-full text-left px-3.5 py-3 bg-[var(--bg-secondary)] rounded-xl text-[13px] font-medium text-[var(--text-primary)] hover:bg-[var(--bg-tertiary)] transition-colors disabled:opacity-50 cursor-pointer"
+                        className="w-full text-left px-3.5 py-3 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-xl text-[13px] font-medium text-gray-900 transition-colors disabled:opacity-50 cursor-pointer"
                       >
                         {btcLoading ? "Connecting..." : "Connect Xverse"}
                       </button>
                       {btcError && (
-                        <p className="text-[11px] text-red-500 px-1 mt-1">{btcError}</p>
+                        <p className="text-[12px] text-red-500 px-1 mt-1">{btcError}</p>
                       )}
                     </div>
                   )}
@@ -239,9 +239,9 @@ export default function WalletBar() {
 
                 {/* Status footer */}
                 {bothConnected && (
-                  <div className="mt-5 pt-4 border-t border-[var(--border-subtle)] flex items-center gap-2">
+                  <div className="mt-5 pt-4 border-t border-gray-200 flex items-center gap-2">
                     <span className="w-1.5 h-1.5 rounded-full bg-[var(--accent-green)] animate-pulse-dot" />
-                    <span className="text-[11px] text-[var(--text-tertiary)]">
+                    <span className="text-[12px] text-gray-400">
                       Both identities verified
                     </span>
                   </div>
