@@ -68,6 +68,10 @@ function artifactPath(filename: string): string {
   return path.resolve(__dirname, "..", "contracts", "target", "dev", filename);
 }
 
+function verifierArtifactPath(filename: string): string {
+  return path.resolve(__dirname, "..", "circuits", "ghostsats", "zk_verifier", "target", "dev", filename);
+}
+
 function loadArtifact(filename: string): any {
   const fullPath = artifactPath(filename);
   if (!fs.existsSync(fullPath)) {
@@ -193,8 +197,8 @@ async function main() {
   const rpcUrl = process.env.STARKNET_RPC_URL ?? defaultRpc;
   const networkName = isMainnet ? "Mainnet" : "Sepolia";
   const explorerBase = isMainnet
-    ? "https://starkscan.co/contract/"
-    : "https://sepolia.starkscan.co/contract/";
+    ? "https://voyager.online/contract/"
+    : "https://sepolia.voyager.online/contract/";
 
   if (!privateKey || !accountAddress) {
     console.error(
@@ -343,9 +347,51 @@ async function main() {
   console.log("========================================");
   const poolSierra = loadArtifact("ghost_sats_ShieldedPool.contract_class.json");
   const poolCallData = new CallData(poolSierra.abi);
-  // ZK verifier: zero address for now (proof verification skipped)
-  // Deploy the Garaga verifier separately and update this address for full ZK
-  const zkVerifierAddress = process.env.ZK_VERIFIER_ADDRESS ?? "0x0";
+  // ZK verifier — deploy Garaga verifier or use existing address
+  let zkVerifierAddress = process.env.ZK_VERIFIER_ADDRESS;
+  if (!zkVerifierAddress || zkVerifierAddress === "0x0") {
+    // Auto-deploy the Garaga UltraKeccakZKHonk verifier
+    const verifierSierraPath = verifierArtifactPath("zk_verifier_UltraKeccakZKHonkVerifier.contract_class.json");
+    const verifierCasmPath = verifierArtifactPath("zk_verifier_UltraKeccakZKHonkVerifier.compiled_contract_class.json");
+    if (!fs.existsSync(verifierSierraPath) || !fs.existsSync(verifierCasmPath)) {
+      console.error("\n  ❌ ZK_VERIFIER_ADDRESS not set and Garaga verifier artifacts not found.\n" +
+        "  Either set ZK_VERIFIER_ADDRESS in .env or build the verifier:\n" +
+        "    cd circuits/ghostsats/zk_verifier && scarb build\n");
+      process.exit(1);
+    }
+
+    console.log(`\n========================================`);
+    console.log(`Step ${stepNum} - Declare Garaga ZK Verifier`);
+    console.log("========================================");
+    const verifierSierra = json.parse(fs.readFileSync(verifierSierraPath).toString("ascii"));
+    const verifierCasm = json.parse(fs.readFileSync(verifierCasmPath).toString("ascii"));
+    const verifierPayload: DeclareContractPayload = { contract: verifierSierra, casm: verifierCasm };
+    let verifierClassHash: string;
+    try {
+      console.log("  Declaring Garaga verifier ...");
+      const declareRes = await account.declare(verifierPayload);
+      console.log(`  tx: ${declareRes.transaction_hash}`);
+      await provider.waitForTransaction(declareRes.transaction_hash);
+      verifierClassHash = declareRes.class_hash;
+      console.log(`  Class hash: ${verifierClassHash}`);
+    } catch (err: any) {
+      const msg: string = err?.message ?? String(err);
+      if (msg.includes("already declared") || msg.includes("class already declared")) {
+        const { hash } = await import("starknet");
+        verifierClassHash = hash.computeContractClassHash(verifierSierra);
+        console.log(`  Already declared. Class hash: ${verifierClassHash}`);
+      } else {
+        throw err;
+      }
+    }
+
+    console.log(`\n========================================`);
+    console.log(`Step ${stepNum + 1} - Deploy Garaga ZK Verifier`);
+    console.log("========================================");
+    zkVerifierAddress = await deployContract(account, provider, verifierClassHash, []);
+  } else {
+    console.log(`\n  Using existing ZK Verifier: ${zkVerifierAddress}`);
+  }
   const poolConstructor = poolCallData.compile("constructor", {
     usdc_token: usdcAddress,
     wbtc_token: wbtcAddress,
@@ -377,7 +423,7 @@ async function main() {
   console.log(`    ZK Verifier     : ${zkVerifierAddress}`);
   console.log(`    ShieldedPool    : ${shieldedPoolAddress}`);
   console.log();
-  console.log("  View on Starkscan:");
+  console.log("  View on Voyager:");
   console.log(`    ${explorerBase}${shieldedPoolAddress}`);
   console.log();
 
@@ -392,7 +438,7 @@ async function main() {
       wbtc: wbtcAddress,
       avnuRouter: routerAddress,
       shieldedPool: shieldedPoolAddress,
-      ...(zkVerifierAddress !== "0x0" ? { garagaVerifier: zkVerifierAddress } : {}),
+      garagaVerifier: zkVerifierAddress,
     },
     classHashes: {
       ShieldedPool: shieldedPoolClassHash,
@@ -418,7 +464,7 @@ async function main() {
       wbtc: wbtcAddress,
       avnuRouter: routerAddress,
       shieldedPool: shieldedPoolAddress,
-      ...(zkVerifierAddress !== "0x0" ? { garagaVerifier: zkVerifierAddress } : {}),
+      garagaVerifier: zkVerifierAddress,
     },
     deployer: accountAddress,
     classHashes: deployment.classHashes,

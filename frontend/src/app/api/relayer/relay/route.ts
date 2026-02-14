@@ -1,9 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Contract, CallData, type Abi } from "starknet";
-import { POOL_ADDRESS, FEE_BPS, getRelayerAccount, getProvider } from "../shared";
+import { POOL_ADDRESS, FEE_BPS, getRelayerAccount, getProvider, rateLimit } from "../shared";
 import { SHIELDED_POOL_ABI } from "@/contracts/abi";
 
 export async function POST(req: NextRequest) {
+  const rateLimited = rateLimit(req.headers.get("x-forwarded-for") ?? "unknown");
+  if (rateLimited) return rateLimited;
+
   try {
     const account = getRelayerAccount();
     if (!account) {

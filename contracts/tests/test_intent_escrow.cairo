@@ -83,20 +83,26 @@ fn deploy_mock_router(rate_num: u256, rate_den: u256) -> ContractAddress {
     address
 }
 
+fn deploy_mock_verifier() -> ContractAddress {
+    let contract = declare("MockZkVerifier").unwrap().contract_class();
+    let (address, _) = contract.deploy(@array![]).unwrap();
+    address
+}
+
 fn deploy_shielded_pool(
     usdc: ContractAddress,
     wbtc: ContractAddress,
     owner: ContractAddress,
     router: ContractAddress,
 ) -> ContractAddress {
+    let verifier = deploy_mock_verifier();
     let contract = declare("ShieldedPool").unwrap().contract_class();
     let mut calldata = array![];
     usdc.serialize(ref calldata);
     wbtc.serialize(ref calldata);
     owner.serialize(ref calldata);
     router.serialize(ref calldata);
-    let zero_verifier: ContractAddress = 0.try_into().unwrap();
-    zero_verifier.serialize(ref calldata);
+    verifier.serialize(ref calldata);
     let (address, _) = contract.deploy(@calldata).unwrap();
     address
 }
@@ -163,7 +169,7 @@ fn setup_intent(
     let (merkle_path, path_indices) = build_single_leaf_proof();
 
     pool.withdraw_with_btc_intent(
-        1, 0xABC1, zk_commitment, array![],
+        1, 0xABC1, zk_commitment, array![zk_commitment, 0xABC1, 1],
         merkle_path, path_indices, addr('recipient'), 0xBBCC,
     );
 
@@ -206,7 +212,7 @@ fn test_withdraw_with_btc_intent_creates_lock() {
 
     // Withdraw with BTC intent — WBTC stays in pool
     pool.withdraw_with_btc_intent(
-        1, 0xAA01, zk_commitment, array![],
+        1, 0xAA01, zk_commitment, array![zk_commitment, 0xAA01, 1],
         merkle_path, path_indices, recipient, btc_addr_hash,
     );
 

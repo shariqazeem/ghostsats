@@ -1,8 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CallData } from "starknet";
-import { POOL_ADDRESS, getRelayerAccount, getProvider } from "../shared";
+import { POOL_ADDRESS, getRelayerAccount, getProvider, rateLimit } from "../shared";
 
 export async function POST(req: NextRequest) {
+  const rateLimited = rateLimit(req.headers.get("x-forwarded-for") ?? "unknown");
+  if (rateLimited) return rateLimited;
+
   try {
     const account = getRelayerAccount();
     if (!account) {

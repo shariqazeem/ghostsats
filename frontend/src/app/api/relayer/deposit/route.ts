@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { CallData } from "starknet";
-import { POOL_ADDRESS, USDC_ADDRESS, getRelayerAccount, getProvider } from "../shared";
+import { POOL_ADDRESS, USDC_ADDRESS, getRelayerAccount, getProvider, rateLimit } from "../shared";
 
 /**
  * Relayer-assisted deposit for autonomous DCA execution.
@@ -8,6 +8,9 @@ import { POOL_ADDRESS, USDC_ADDRESS, getRelayerAccount, getProvider } from "../s
  * the relayer pulls USDC and calls deposit_private on behalf of the user.
  */
 export async function POST(req: NextRequest) {
+  const rateLimited = rateLimit(req.headers.get("x-forwarded-for") ?? "unknown");
+  if (rateLimited) return rateLimited;
+
   try {
     const account = getRelayerAccount();
     if (!account) {

@@ -83,21 +83,26 @@ fn deploy_mock_router(rate_num: u256, rate_den: u256) -> ContractAddress {
     address
 }
 
+fn deploy_mock_verifier() -> ContractAddress {
+    let contract = declare("MockZkVerifier").unwrap().contract_class();
+    let (address, _) = contract.deploy(@array![]).unwrap();
+    address
+}
+
 fn deploy_shielded_pool(
     usdc: ContractAddress,
     wbtc: ContractAddress,
     owner: ContractAddress,
     router: ContractAddress,
 ) -> ContractAddress {
+    let verifier = deploy_mock_verifier();
     let contract = declare("ShieldedPool").unwrap().contract_class();
     let mut calldata = array![];
     usdc.serialize(ref calldata);
     wbtc.serialize(ref calldata);
     owner.serialize(ref calldata);
     router.serialize(ref calldata);
-    // ZK verifier = zero address (skip ZK proof verification in tests)
-    let zero_verifier: ContractAddress = 0.try_into().unwrap();
-    zero_verifier.serialize(ref calldata);
+    verifier.serialize(ref calldata);
     let (address, _) = contract.deploy(@calldata).unwrap();
     address
 }
@@ -192,7 +197,7 @@ fn test_withdraw_private_full_flow() {
 
     pool.withdraw_private(
         1, zk_nullifier, zk_commitment,
-        array![], // empty proof (verifier = zero addr, skipped)
+        array![zk_commitment, zk_nullifier, 1],
         merkle_path, path_indices, recipient, 0,
     );
 
@@ -250,11 +255,11 @@ fn test_zk_double_spend_rejected() {
     start_cheat_block_timestamp_global(100);
 
     let (path1, indices1) = build_single_leaf_proof();
-    pool.withdraw_private(1, zk_nullifier, zk_commitment, array![], path1, indices1, recipient, 0);
+    pool.withdraw_private(1, zk_nullifier, zk_commitment, array![zk_commitment, zk_nullifier, 1], path1, indices1, recipient, 0);
 
     // Second withdrawal with same ZK nullifier — should panic
     let (path2, indices2) = build_single_leaf_proof();
-    pool.withdraw_private(1, zk_nullifier, zk_commitment, array![], path2, indices2, recipient, 0);
+    pool.withdraw_private(1, zk_nullifier, zk_commitment, array![zk_commitment, zk_nullifier, 1], path2, indices2, recipient, 0);
 }
 
 #[test]
@@ -290,7 +295,7 @@ fn test_wrong_zk_commitment_rejected() {
     // Use a wrong ZK commitment that was never deposited
     let wrong_zk: felt252 = 0xBAD;
     let (path, indices) = build_single_leaf_proof();
-    pool.withdraw_private(1, 0x40110C, wrong_zk, array![], path, indices, recipient, 0);
+    pool.withdraw_private(1, 0x40110C, wrong_zk, array![wrong_zk, 0x40110C, 1], path, indices, recipient, 0);
 }
 
 #[test]
@@ -324,7 +329,7 @@ fn test_zk_withdrawal_timing_delay_enforced() {
     // Do NOT advance time — should fail
 
     let (path, indices) = build_single_leaf_proof();
-    pool.withdraw_private(1, 0x40110D, zk_commitment, array![], path, indices, recipient, 0);
+    pool.withdraw_private(1, 0x40110D, zk_commitment, array![zk_commitment, 0x40110D, 1], path, indices, recipient, 0);
 }
 
 #[test]
@@ -363,7 +368,7 @@ fn test_zk_relayer_fee_calculation() {
 
     // Withdraw via relayer with 200 bps (2%) fee
     pool.withdraw_private_via_relayer(
-        1, zk_nullifier, zk_commitment, array![],
+        1, zk_nullifier, zk_commitment, array![zk_commitment, zk_nullifier, 1],
         merkle_path, path_indices, recipient, relayer, 200, 0,
     );
 
@@ -540,7 +545,7 @@ fn test_zk_withdrawal_with_btc_intent_creates_escrow() {
     let mut spy = spy_events();
 
     pool.withdraw_private(
-        1, zk_nullifier, zk_commitment, array![],
+        1, zk_nullifier, zk_commitment, array![zk_commitment, zk_nullifier, 1],
         merkle_path, path_indices, recipient, btc_dest,
     );
 

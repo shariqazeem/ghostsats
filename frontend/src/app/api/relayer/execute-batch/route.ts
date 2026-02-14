@@ -1,6 +1,6 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { CallData, Contract, type Abi } from "starknet";
-import { POOL_ADDRESS, USDC_ADDRESS, WBTC_ADDRESS, AVNU_API_BASE, getRelayerAccount, getProvider } from "../shared";
+import { POOL_ADDRESS, USDC_ADDRESS, WBTC_ADDRESS, AVNU_API_BASE, getRelayerAccount, getProvider, rateLimit } from "../shared";
 import addresses from "@/contracts/addresses.json";
 
 const ROUTER_ADDRESS = addresses.contracts.avnuRouter;
@@ -157,7 +157,10 @@ async function updateMockRouterRate(account: ReturnType<typeof getRelayerAccount
 // POST handler
 // ---------------------------------------------------------------------------
 
-export async function POST() {
+export async function POST(req: NextRequest) {
+  const rateLimited = rateLimit(req.headers.get("x-forwarded-for") ?? "unknown");
+  if (rateLimited) return rateLimited;
+
   try {
     const account = getRelayerAccount();
     if (!account) {

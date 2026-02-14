@@ -3,8 +3,37 @@
  * Uses environment variables for private key and account address.
  */
 
+import { NextResponse } from "next/server";
 import { Account, RpcProvider, ETransactionVersion } from "starknet";
 import addresses from "@/contracts/addresses.json";
+
+// ---------------------------------------------------------------------------
+// Rate Limiting (in-memory, per-IP, sliding window)
+// ---------------------------------------------------------------------------
+const rateLimitMap = new Map<string, number[]>();
+const RATE_LIMIT_WINDOW_MS = 60_000; // 1 minute
+const RATE_LIMIT_MAX_REQUESTS = 10; // max 10 requests per minute per IP
+
+export function rateLimit(ip: string): NextResponse | null {
+  const now = Date.now();
+  const timestamps = rateLimitMap.get(ip) ?? [];
+  const recent = timestamps.filter((t) => now - t < RATE_LIMIT_WINDOW_MS);
+  if (recent.length >= RATE_LIMIT_MAX_REQUESTS) {
+    return NextResponse.json(
+      { success: false, error: "Rate limit exceeded — try again later" },
+      { status: 429 },
+    );
+  }
+  recent.push(now);
+  rateLimitMap.set(ip, recent);
+  // Cleanup stale IPs every ~100 entries
+  if (rateLimitMap.size > 100) {
+    for (const [key, vals] of rateLimitMap) {
+      if (vals.every((t) => now - t > RATE_LIMIT_WINDOW_MS)) rateLimitMap.delete(key);
+    }
+  }
+  return null;
+}
 
 const network = addresses.network ?? "sepolia";
 

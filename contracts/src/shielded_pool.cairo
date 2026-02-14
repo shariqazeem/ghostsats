@@ -475,6 +475,7 @@ pub mod ShieldedPool {
         assert(wbtc_token != zero_addr, 'WBTC cannot be zero');
         assert(owner != zero_addr, 'Owner cannot be zero');
         assert(avnu_router != zero_addr, 'Router cannot be zero');
+        assert(zk_verifier != zero_addr, 'Verifier cannot be zero');
 
         self.usdc_token.write(usdc_token);
         self.wbtc_token.write(wbtc_token);
@@ -913,6 +914,8 @@ pub mod ShieldedPool {
 
         fn set_zk_verifier(ref self: ContractState, verifier: ContractAddress) {
             assert(get_caller_address() == self.owner.read(), 'Only owner');
+            let zero_addr: ContractAddress = 0.try_into().unwrap();
+            assert(verifier != zero_addr, 'Verifier cannot be zero');
             let old_verifier = self.zk_verifier.read();
             self.zk_verifier.write(verifier);
             self.emit(ZkVerifierUpdated { old_verifier, new_verifier: verifier });
@@ -1178,26 +1181,22 @@ pub mod ShieldedPool {
             // 3. Verify commitment exists
             assert(self.commitments.entry(commitment).read(), 'Invalid commitment');
 
-            // 4. Verify ZK proof via Garaga verifier
-            let verifier_addr = self.zk_verifier.read();
-            let zero_addr: ContractAddress = 0.try_into().unwrap();
-            if verifier_addr != zero_addr {
-                let verifier = IZKVerifierDispatcher { contract_address: verifier_addr };
-                let result = verifier.verify_ultra_keccak_zk_honk_proof(proof.span());
-                assert(result.is_ok(), 'ZK proof verification failed');
+            // 4. Verify ZK proof via Garaga verifier (always enforced)
+            let verifier = IZKVerifierDispatcher { contract_address: self.zk_verifier.read() };
+            let result = verifier.verify_ultra_keccak_zk_honk_proof(proof.span());
+            assert(result.is_ok(), 'ZK proof verification failed');
 
-                // Verify public inputs match parameters (prevents proof replay)
-                // BN254 Poseidon outputs (~2^254) are reduced % STARK_PRIME for felt252 storage.
-                // The proof's public inputs are unreduced BN254 values, so reduce before comparing.
-                let pub_inputs = result.unwrap();
-                let stark_prime: u256 = 0x800000000000011000000000000000000000000000000000000000000000001;
-                let expected_commitment: u256 = zk_commitment.into();
-                let expected_nullifier: u256 = zk_nullifier.into();
-                let expected_denom: u256 = denomination.into();
-                assert(*pub_inputs.at(0) % stark_prime == expected_commitment, 'ZK commitment mismatch');
-                assert(*pub_inputs.at(1) % stark_prime == expected_nullifier, 'ZK nullifier mismatch');
-                assert(*pub_inputs.at(2) == expected_denom, 'ZK denomination mismatch');
-            }
+            // Verify public inputs match parameters (prevents proof replay)
+            // BN254 Poseidon outputs (~2^254) are reduced % STARK_PRIME for felt252 storage.
+            // The proof's public inputs are unreduced BN254 values, so reduce before comparing.
+            let pub_inputs = result.unwrap();
+            let stark_prime: u256 = 0x800000000000011000000000000000000000000000000000000000000000001;
+            let expected_commitment: u256 = zk_commitment.into();
+            let expected_nullifier: u256 = zk_nullifier.into();
+            let expected_denom: u256 = denomination.into();
+            assert(*pub_inputs.at(0) % stark_prime == expected_commitment, 'ZK commitment mismatch');
+            assert(*pub_inputs.at(1) % stark_prime == expected_nullifier, 'ZK nullifier mismatch');
+            assert(*pub_inputs.at(2) == expected_denom, 'ZK denomination mismatch');
 
             // 5. ZK Nullifier check — prevent double-spend
             assert(!self.zk_nullifiers.entry(zk_nullifier).read(), 'Note already spent');

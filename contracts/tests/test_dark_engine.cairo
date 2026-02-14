@@ -55,20 +55,26 @@ fn deploy_mock_router(rate_num: u256, rate_den: u256) -> ContractAddress {
     address
 }
 
+fn deploy_mock_verifier() -> ContractAddress {
+    let contract = declare("MockZkVerifier").unwrap().contract_class();
+    let (address, _) = contract.deploy(@array![]).unwrap();
+    address
+}
+
 fn deploy_shielded_pool(
     usdc: ContractAddress,
     wbtc: ContractAddress,
     owner: ContractAddress,
     router: ContractAddress,
 ) -> ContractAddress {
+    let verifier = deploy_mock_verifier();
     let contract = declare("ShieldedPool").unwrap().contract_class();
     let mut calldata = array![];
     usdc.serialize(ref calldata);
     wbtc.serialize(ref calldata);
     owner.serialize(ref calldata);
     router.serialize(ref calldata);
-    let zero_verifier: ContractAddress = 0.try_into().unwrap();
-    zero_verifier.serialize(ref calldata);
+    verifier.serialize(ref calldata);
     let (address, _) = contract.deploy(@calldata).unwrap();
     address
 }

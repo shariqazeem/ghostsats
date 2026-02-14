@@ -8,10 +8,21 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { rateLimit } from "../shared";
 
-const VM_URL = process.env.CALLDATA_SERVER_URL?.trim() ?? "http://141.148.215.239";
+const VM_URL = process.env.CALLDATA_SERVER_URL?.trim();
+if (!VM_URL) {
+  console.warn("[calldata] CALLDATA_SERVER_URL not set — calldata proxy will be unavailable");
+}
 
 export async function POST(req: NextRequest) {
+  const rateLimited = rateLimit(req.headers.get("x-forwarded-for") ?? "unknown");
+  if (rateLimited) return rateLimited;
+
+  if (!VM_URL) {
+    return NextResponse.json({ error: "Calldata server not configured" }, { status: 503 });
+  }
+
   try {
     const body = await req.json();
 
