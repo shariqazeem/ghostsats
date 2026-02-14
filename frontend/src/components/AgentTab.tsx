@@ -21,9 +21,9 @@ import {
   type AgentLogEntry,
   type PoolState,
 } from "@/utils/strategyEngine";
-import { EXPLORER_TX } from "@/utils/network";
+import { EXPLORER_TX, RPC_URL } from "@/utils/network";
 import addresses from "@/contracts/addresses.json";
-import { CallData } from "starknet";
+import { CallData, RpcProvider } from "starknet";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Brain,
@@ -266,8 +266,13 @@ export default function AgentTab() {
           },
         ];
 
-        await sendAsync(approveCalls);
-        emitLog("result", `USDC approved — relayer executing autonomously`);
+        const approveResult = await sendAsync(approveCalls);
+        emitLog("think", `Approval sent — waiting for on-chain confirmation...`);
+
+        // Wait for the approve tx to be included in a block
+        const provider = new RpcProvider({ nodeUrl: RPC_URL });
+        await provider.waitForTransaction(approveResult.transaction_hash);
+        emitLog("result", `USDC approved on-chain — relayer executing autonomously`);
 
         // Step 2: Relayer handles all deposits with delays (no more wallet popups)
         for (let i = 0; i < steps.length; i++) {
