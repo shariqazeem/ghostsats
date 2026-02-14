@@ -111,7 +111,7 @@ export default function ComplianceTab() {
       const nullifier = computeNullifier(note.secret);
 
       const proof = {
-        protocol: "GhostSats",
+        protocol: "Veil Protocol",
         version: "1.0",
         network: isMainnet ? "starknet-mainnet" : "starknet-sepolia",
         contract: poolAddress,
@@ -132,7 +132,7 @@ export default function ComplianceTab() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `ghostsats-proof-${note.commitment.slice(0, 10)}.json`;
+      a.download = `veil-proof-${note.commitment.slice(0, 10)}.json`;
       a.click();
       URL.revokeObjectURL(url);
     } catch (e) {
@@ -192,7 +192,7 @@ export default function ComplianceTab() {
           <ShieldCheck size={24} className="mx-auto mb-3 text-[var(--text-tertiary)]" strokeWidth={1.5} />
           <p className="text-sm text-[var(--text-secondary)]">No deposits found</p>
           <p className="text-xs text-[var(--text-tertiary)] mt-1">
-            Shield assets first, then register view keys here
+            Make a deposit first, then register view keys here
           </p>
         </div>
       ) : (

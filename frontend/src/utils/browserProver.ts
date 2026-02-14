@@ -102,6 +102,18 @@ export async function generateProofInBrowser(params: {
 }
 
 /**
+ * Pre-load WASM modules so proof generation starts faster.
+ * Call on page mount to shave 5-15 seconds off first withdrawal.
+ */
+export async function preloadProver(): Promise<void> {
+  try {
+    await ensureInit();
+  } catch {
+    // Silently fail — will retry when actually needed
+  }
+}
+
+/**
  * Destroy the backend to free WASM memory.
  * Call when navigating away from the withdrawal page.
  */

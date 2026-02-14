@@ -264,7 +264,7 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
   const privateKey = process.env.PRIVATE_KEY;
   const accountAddress = process.env.ACCOUNT_ADDRESS;
   const defaultRpc = deployedNetwork === "mainnet"
-    ? "https://starknet-mainnet.public.blastapi.io"
+    ? "https://rpc.starknet.lava.build"
     : "https://starknet-sepolia-rpc.publicnode.com";
   const rpcUrl = process.env.STARKNET_RPC_URL ?? defaultRpc;
 
@@ -278,9 +278,14 @@ async function runKeeper(dryRun: boolean): Promise<boolean> {
 
   // Connect (use "latest" block — some RPCs don't support "pending")
   const provider = new RpcProvider({ nodeUrl: rpcUrl, blockIdentifier: "latest" as any });
+  // Use V1 (ETH gas) with --eth-gas flag, otherwise V3 (STRK gas)
+  const useEthGas = process.argv.includes("--eth-gas");
+  const txVersion = useEthGas
+    ? constants.TRANSACTION_VERSION.V1
+    : constants.TRANSACTION_VERSION.V3;
   const account = new Account(
     provider, accountAddress, privateKey,
-    undefined, constants.TRANSACTION_VERSION.V3,
+    undefined, txVersion,
   );
   const pool = new Contract(POOL_ABI, POOL_ADDRESS, provider);
 

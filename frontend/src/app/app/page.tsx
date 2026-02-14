@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import WalletBar from "@/components/WalletBar";
 import Dashboard from "@/components/Dashboard";
 import TabPanel from "@/components/TabPanel";
@@ -11,15 +12,22 @@ export default function AppPage() {
       <main className="max-w-2xl mx-auto px-4 sm:px-6 pt-20 sm:pt-24 pb-16 sm:pb-20 space-y-8 sm:space-y-10">
         <OnboardingBanner />
         <Dashboard />
-        <TabPanel />
+        <Suspense>
+          <TabPanel />
+        </Suspense>
         <TransactionHistory />
       </main>
       <footer className="text-center pb-8 sm:pb-10">
-        <p className="text-[11px] text-[var(--text-tertiary)] tracking-widest uppercase">
-          GhostSats &middot; Private Bitcoin Accumulation Protocol
-        </p>
-        <p className="text-[10px] text-[var(--text-quaternary)] mt-1">
-          ZK Proofs &middot; Batch Swaps &middot; Intent Settlement &middot; Starknet
+        <div className="h-px bg-[var(--border-subtle)] max-w-xs mx-auto mb-6" />
+        <div className="flex items-center justify-center gap-4 mb-2">
+          {["Built on Starknet", "STARK-Verified ZK Proofs", "Bitcoin-Native Liquidity"].map((item) => (
+            <span key={item} className="text-[10px] text-[var(--text-quaternary)] font-medium">
+              {item}
+            </span>
+          ))}
+        </div>
+        <p className="text-[10px] text-[var(--text-quaternary)]">
+          Veil Protocol &middot; Confidential Bitcoin Accumulation Infrastructure
         </p>
       </footer>
     </div>

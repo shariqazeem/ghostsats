@@ -6,7 +6,7 @@ import { useSendTransaction } from "@starknet-react/core";
 import { useWallet } from "@/context/WalletContext";
 import { generatePrivateNote, saveNote, DENOMINATIONS, DENOMINATION_LABELS } from "@/utils/privacy";
 import { signCommitment, computeBtcIdentityHash } from "@/utils/bitcoin";
-import { AlertTriangle, Shield, ExternalLink, Droplets } from "lucide-react";
+import { AlertTriangle, ArrowRight, Droplets, CheckCircle, Loader } from "lucide-react";
 import { useToast } from "@/context/ToastContext";
 import { motion, AnimatePresence } from "framer-motion";
 import addresses from "@/contracts/addresses.json";
@@ -20,33 +20,42 @@ type Phase =
   | "generating_proof"
   | "generating_zk"
   | "depositing"
+  | "executing_batch"
+  | "batch_done"
   | "success"
   | "error";
 
 const PHASE_LABELS: Record<Phase, string> = {
   idle: "",
-  signing_btc: "Bitcoin wallet signing commitment hash...",
-  generating_proof: "Computing Pedersen commitment & BTC identity...",
-  generating_zk: "Generating zero-knowledge commitment...",
-  depositing: "Depositing to shielded pool...",
-  success: "Shielded successfully",
-  error: "Shield failed",
+  signing_btc: "Attestating Bitcoin identity...",
+  generating_proof: "Computing Pedersen commitment...",
+  generating_zk: "Generating confidential credentials...",
+  depositing: "Submitting capital allocation...",
+  executing_batch: "Executing batch conversion at market rate...",
+  batch_done: "Execution complete — BTC ready for confidential exit",
+  success: "Capital allocation confirmed",
+  error: "Transaction failed",
 };
 
 const spring = { type: "spring" as const, stiffness: 400, damping: 30 };
 
-const TX_EXPLORER = EXPLORER_TX;
+const RELAYER_URL = process.env.NEXT_PUBLIC_RELAYER_URL ?? "/api/relayer";
 
-export default function ShieldForm() {
+interface ShieldFormProps {
+  onComplete?: () => void;
+}
+
+export default function ShieldForm({ onComplete }: ShieldFormProps) {
   const { address, isConnected } = useAccount();
   const { bitcoinAddress } = useWallet();
   const { sendAsync } = useSendTransaction({ calls: [] });
   const { toast } = useToast();
 
-  const [selectedTier, setSelectedTier] = useState<number>(1); // Default: 1000 USDC
+  const [selectedTier, setSelectedTier] = useState<number>(1);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [txHash, setTxHash] = useState<string | null>(null);
+  const [batchTxHash, setBatchTxHash] = useState<string | null>(null);
   const [btcPrice, setBtcPrice] = useState<number | null>(null);
 
   const [minting, setMinting] = useState(false);
@@ -54,11 +63,9 @@ export default function ShieldForm() {
   const poolAddress = addresses.contracts.shieldedPool;
   const usdcAddress = addresses.contracts.usdc;
 
-  // Detect live mode: real Sepolia USDC has no public mint()
   const REAL_USDC = "0x053b40a647cedfca6ca84f542a0fe36736031905a9639a7f19a3c1e66bfd5080";
   const isLiveMode = usdcAddress.toLowerCase() === REAL_USDC.toLowerCase();
 
-  // Read USDC balance
   const { data: usdcBalance, refetch: refetchBalance } = useReadContract({
     address: usdcAddress || undefined,
     abi: ERC20_ABI,
@@ -79,11 +86,11 @@ export default function ShieldForm() {
         entrypoint: "mint",
         calldata: CallData.compile({
           to: address,
-          amount: { low: 100_000_000_000n, high: 0n }, // 100,000 USDC
+          amount: { low: 100_000_000_000n, high: 0n },
         }),
       }];
       await sendAsync(calls);
-      toast("success", "100,000 Test USDC minted to your wallet");
+      toast("success", "100,000 Test USDC minted");
       refetchBalance();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Mint failed";
@@ -106,11 +113,11 @@ export default function ShieldForm() {
         const data = await res.json();
         if (data?.bitcoin?.usd) setBtcPrice(Math.round(data.bitcoin.usd));
       } catch {
-        setBtcPrice(97000); // Fallback
+        setBtcPrice(97000);
       }
     }
     fetchPrice();
-    const interval = setInterval(fetchPrice, 60_000); // Refresh every 60s
+    const interval = setInterval(fetchPrice, 60_000);
     return () => clearInterval(interval);
   }, []);
 
@@ -163,9 +170,27 @@ export default function ShieldForm() {
     2: anonSet2 ? Number(anonSet2) : 0,
   };
 
-  async function handleShield() {
+  async function executeBatchAutomatically(): Promise<boolean> {
+    try {
+      const res = await fetch(`${RELAYER_URL}/execute-batch`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      if (data.success) {
+        setBatchTxHash(data.txHash);
+        return true;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  async function handleAccumulate() {
     setError(null);
     setTxHash(null);
+    setBatchTxHash(null);
 
     if (!isConnected || !address) {
       setError("Connect your Starknet wallet first");
@@ -216,11 +241,23 @@ export default function ShieldForm() {
       const result = await sendAsync(calls);
       setTxHash(result.transaction_hash);
 
-      // Save note with encryption
       await saveNote(note, address);
 
-      setPhase("success");
-      toast("success", "USDC deposited — batch swap executes when threshold met");
+      // Auto-execute batch — the key UX improvement
+      setPhase("executing_batch");
+      const batchSuccess = await executeBatchAutomatically();
+
+      if (batchSuccess) {
+        setPhase("batch_done");
+        toast("success", "Capital converted — ready for confidential exit");
+        await new Promise(r => setTimeout(r, 1500));
+        setPhase("success");
+        if (onComplete) onComplete();
+      } else {
+        // Batch didn't execute — deposit is safe, conversion pending
+        toast("info", "Allocation confirmed — batch conversion will execute automatically");
+        setPhase("success");
+      }
     } catch (err: unknown) {
       setPhase("error");
       const msg = err instanceof Error ? err.message : "Unknown error";
@@ -232,14 +269,14 @@ export default function ShieldForm() {
         toast("error", "Insufficient USDC balance");
       } else {
         setError(msg);
-        toast("error", "Shield failed");
+        toast("error", "Transaction failed");
       }
     }
   }
 
   const isProcessing =
     phase !== "idle" && phase !== "success" && phase !== "error";
-  const canShield = isConnected && !isProcessing;
+  const canAccumulate = isConnected && !isProcessing;
 
   return (
     <div className="relative">
@@ -253,21 +290,66 @@ export default function ShieldForm() {
             transition={{ duration: 0.5, ease: [0.4, 0, 0.2, 1] }}
             className="flex flex-col items-center justify-center py-16 gap-6"
           >
-            <div
-              className="w-24 h-24 rounded-full animate-processing-orb"
-              style={{
-                background: "radial-gradient(circle at 40% 35%, #2A2A30 0%, #1A1A1F 50%, #131316 100%)",
-                boxShadow: "0 0 60px rgba(255, 90, 0, 0.1)",
-                border: "1px solid rgba(255, 255, 255, 0.06)",
-              }}
-            />
+            {phase === "batch_done" ? (
+              <div className="w-24 h-24 rounded-full bg-emerald-950/30 border border-emerald-800/30 flex items-center justify-center">
+                <CheckCircle size={32} strokeWidth={1.5} className="text-emerald-400" />
+              </div>
+            ) : (
+              <div
+                className="w-24 h-24 rounded-full animate-processing-orb"
+                style={{
+                  background: "radial-gradient(circle at 40% 35%, #2A2A30 0%, #1A1A1F 50%, #131316 100%)",
+                  boxShadow: phase === "executing_batch"
+                    ? "0 0 60px rgba(16, 185, 129, 0.15)"
+                    : "0 0 60px rgba(255, 90, 0, 0.1)",
+                  border: "1px solid rgba(255, 255, 255, 0.06)",
+                }}
+              />
+            )}
             <div className="text-center space-y-1.5">
               <p className="text-[13px] font-medium text-[var(--text-primary)]">
                 {PHASE_LABELS[phase]}
               </p>
-              <p className="text-[11px] text-[var(--text-tertiary)]">
-                Do not close this window
-              </p>
+              {phase === "executing_batch" && (
+                <p className="text-[11px] text-emerald-400/60">
+                  Swapping via AVNU at live market rate
+                </p>
+              )}
+              {phase !== "batch_done" && (
+                <p className="text-[11px] text-[var(--text-tertiary)]">
+                  Do not close this window
+                </p>
+              )}
+            </div>
+            {/* Step progress indicator */}
+            <div className="flex items-center gap-2 mt-2">
+              {["Allocate", "Convert", "Ready"].map((step, i) => {
+                const stepPhases: Phase[][] = [
+                  ["generating_proof", "generating_zk", "signing_btc", "depositing"],
+                  ["executing_batch"],
+                  ["batch_done"],
+                ];
+                const isActive = stepPhases[i].includes(phase);
+                const isDone = i === 0
+                  ? ["executing_batch", "batch_done"].includes(phase)
+                  : i === 1
+                    ? phase === "batch_done"
+                    : false;
+                return (
+                  <div key={step} className="flex items-center gap-2">
+                    {i > 0 && <div className={`w-6 h-px ${isDone || isActive ? "bg-emerald-500" : "bg-[var(--border-subtle)]"}`} />}
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-medium ${
+                      isDone ? "bg-emerald-950/30 text-emerald-400 border border-emerald-800/30"
+                        : isActive ? "bg-[var(--accent-orange)]/10 text-[var(--accent-orange)] border border-[var(--accent-orange)]/30"
+                        : "bg-[var(--bg-secondary)] text-[var(--text-tertiary)] border border-[var(--border-subtle)]"
+                    }`}>
+                      {isDone && <CheckCircle size={10} strokeWidth={2} />}
+                      {isActive && <Loader size={10} strokeWidth={2} className="animate-spin" />}
+                      {step}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </motion.div>
         ) : (
@@ -297,7 +379,7 @@ export default function ShieldForm() {
                           Get Sepolia USDC
                         </p>
                         <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-2">
-                          This app uses real Sepolia testnet USDC (not mock tokens). To get test USDC:
+                          This demo uses real Sepolia testnet USDC:
                         </p>
                         <ol className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3 list-decimal list-inside space-y-1">
                           <li>Get Sepolia ETH from a{" "}
@@ -307,7 +389,7 @@ export default function ShieldForm() {
                             <a href="https://faucet.circle.com/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">Circle Faucet</a>
                           </li>
                           <li>Bridge to Starknet via{" "}
-                            <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">StarkGate Bridge</a>
+                            <a href="https://sepolia.starkgate.starknet.io/" target="_blank" rel="noopener noreferrer" className="text-[var(--accent-orange)] hover:underline">StarkGate</a>
                           </li>
                         </ol>
                         <span className="text-[10px] text-[var(--text-quaternary)] font-[family-name:var(--font-geist-mono)]">
@@ -320,7 +402,7 @@ export default function ShieldForm() {
                           Get Test USDC
                         </p>
                         <p className="text-[11px] text-[var(--text-secondary)] leading-relaxed mb-3">
-                          This is a Sepolia testnet demo. Mint free test USDC to try the full Shield → Batch → Unveil flow.
+                          Mint free test USDC to try the full accumulation flow.
                         </p>
                         <div className="flex items-center gap-3">
                           <motion.button
@@ -344,7 +426,7 @@ export default function ShieldForm() {
               </motion.div>
             )}
 
-            {/* USDC Balance indicator */}
+            {/* USDC Balance */}
             {isConnected && balance >= 100 && (
               <div className="flex items-center justify-between px-1">
                 <span className="text-[11px] text-[var(--text-tertiary)]">
@@ -356,16 +438,16 @@ export default function ShieldForm() {
               </div>
             )}
 
-            {/* Denomination Selector */}
+            {/* Tranche Selector */}
             <div className="space-y-3">
               <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)] block">
-                Select Amount
+                Select Capital Tier
               </span>
               <div className="grid grid-cols-3 gap-2">
                 {Object.entries(DENOMINATIONS).map(([tier, amount]) => {
                   const tierNum = Number(tier);
                   const isSelected = selectedTier === tierNum;
-                  const usdcAmount = amount / 1_000_000; // Convert from 6-decimal raw to human
+                  const usdcAmount = amount / 1_000_000;
                   const btcEstimate = btcPrice ? (usdcAmount / btcPrice) : null;
                   return (
                     <motion.button
@@ -403,47 +485,42 @@ export default function ShieldForm() {
                               ? "text-amber-500"
                               : "text-[var(--text-tertiary)]"
                       }`}>
-                        {anonSets[tierNum]} in set
+                        {anonSets[tierNum]} in pool
                       </div>
                     </motion.button>
                   );
                 })}
               </div>
               <div className="flex items-center justify-center gap-2 text-[11px] text-[var(--text-tertiary)]">
-                <span>Fixed denominations ensure all deposits are indistinguishable</span>
+                <span>Standardized capital tiers — all allocations are indistinguishable</span>
               </div>
               {btcPrice && (
                 <div className="flex items-center justify-center gap-1.5 text-[10px] text-[var(--text-quaternary)]">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  BTC ${btcPrice.toLocaleString()} — live rate applied on-chain at swap
+                  BTC ${btcPrice.toLocaleString()} — live rate applied at conversion
                 </div>
               )}
             </div>
 
-            {/* Shield Button */}
+            {/* Accumulate Button */}
             <motion.button
-              onClick={handleShield}
-              disabled={!canShield}
+              onClick={handleAccumulate}
+              disabled={!canAccumulate}
               className="w-full py-4.5 bg-[var(--accent-orange)] text-white rounded-2xl text-[15px] font-semibold tracking-tight
                          disabled:opacity-20 disabled:cursor-not-allowed
                          cursor-pointer transition-all flex items-center justify-center gap-2"
-              whileHover={canShield ? { y: -1, boxShadow: "var(--shadow-xl)" } : {}}
-              whileTap={canShield ? { scale: 0.985 } : {}}
+              whileHover={canAccumulate ? { y: -1, boxShadow: "var(--shadow-xl)" } : {}}
+              whileTap={canAccumulate ? { scale: 0.985 } : {}}
               transition={spring}
             >
-              <Shield size={16} strokeWidth={1.5} />
-              Shield {DENOMINATION_LABELS[selectedTier]}
+              Allocate Capital
+              <ArrowRight size={16} strokeWidth={1.5} />
             </motion.button>
 
             {/* Wallet Hints */}
             {!isConnected && (
               <p className="text-[12px] text-[var(--text-tertiary)] text-center">
-                Connect Starknet wallet to shield assets
-              </p>
-            )}
-            {isConnected && !bitcoinAddress && (
-              <p className="text-[12px] text-[var(--text-tertiary)] text-center">
-                Bitcoin wallet optional — connect for BTC identity linking
+                Connect your Starknet wallet to begin
               </p>
             )}
 
@@ -466,48 +543,72 @@ export default function ShieldForm() {
           >
             <div className={`rounded-2xl p-5 ${
               phase === "success"
-                ? "bg-[var(--bg-secondary)] border border-[var(--border-subtle)]"
+                ? "bg-emerald-950/20 border border-emerald-800/20"
                 : "bg-red-950/30 border border-red-900/30"
             }`}>
               <div className="flex items-center gap-2.5">
                 {phase === "success" ? (
-                  <span className="w-2 h-2 rounded-full bg-[var(--accent-green)]" />
+                  <CheckCircle size={16} strokeWidth={1.5} className="text-emerald-400" />
                 ) : (
                   <AlertTriangle size={14} strokeWidth={1.5} className="text-red-500" />
                 )}
                 <span className={`text-[13px] font-medium ${
-                  phase === "success" ? "text-[var(--text-primary)]" : "text-red-400"
+                  phase === "success" ? "text-emerald-400" : "text-red-400"
                 }`}>
                   {PHASE_LABELS[phase]}
                 </span>
               </div>
               {txHash && (
                 <a
-                  href={`${TX_EXPLORER}${txHash}`}
+                  href={`${EXPLORER_TX}${txHash}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3 flex items-center gap-1.5 text-[11px] text-[var(--accent-orange)] hover:underline font-[family-name:var(--font-geist-mono)]"
+                  className="mt-2 flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] font-[family-name:var(--font-geist-mono)]"
                 >
-                  View on Starkscan
-                  <ExternalLink size={10} strokeWidth={1.5} />
+                  Deposit tx &rarr;
+                </a>
+              )}
+              {batchTxHash && (
+                <a
+                  href={`${EXPLORER_TX}${batchTxHash}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-1 flex items-center gap-1.5 text-[11px] text-[var(--text-tertiary)] hover:text-[var(--text-secondary)] font-[family-name:var(--font-geist-mono)]"
+                >
+                  Conversion tx &rarr;
                 </a>
               )}
               {error && phase === "error" && (
                 <p className="mt-2 text-[11px] text-red-500 break-all">{error}</p>
               )}
               {phase === "success" && (
-                <div className="mt-3 space-y-2">
-                  <p className="text-[11px] text-[var(--text-tertiary)]">
-                    Your USDC is deposited in the shielded pool. The keeper will automatically batch-swap to WBTC
-                    when the threshold is met. After the batch executes, a 60-second privacy cooldown activates —
-                    then switch to the <strong>Unveil</strong> tab to claim your WBTC.
-                  </p>
-                  <button
-                    onClick={() => { setPhase("idle"); setTxHash(null); }}
-                    className="text-[12px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
-                  >
-                    Shield more
-                  </button>
+                <div className="mt-3 space-y-3">
+                  {batchTxHash ? (
+                    <p className="text-[11px] text-emerald-400/70">
+                      Capital converted. Proceed to <strong>Confidential Exit</strong> to claim BTC.
+                    </p>
+                  ) : (
+                    <p className="text-[11px] text-[var(--text-tertiary)]">
+                      Capital allocated to privacy pool. Batch conversion will execute automatically.
+                      Once converted, use <strong>Confidential Exit</strong> to claim BTC.
+                    </p>
+                  )}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => { setPhase("idle"); setTxHash(null); setBatchTxHash(null); }}
+                      className="text-[12px] font-medium text-[var(--text-tertiary)] hover:text-[var(--text-primary)] transition-colors cursor-pointer"
+                    >
+                      Allocate more
+                    </button>
+                    {batchTxHash && onComplete && (
+                      <button
+                        onClick={onComplete}
+                        className="text-[12px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        Confidential Exit <ArrowRight size={12} strokeWidth={2} />
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>

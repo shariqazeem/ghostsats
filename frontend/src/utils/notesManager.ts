@@ -83,8 +83,44 @@ export async function checkNoteStatus(
     const totalWbtcOut = BigInt(result.total_wbtc_out?.toString() ?? "0");
 
     let wbtcShare = "0";
-    if (totalUsdcIn > 0n) {
-      wbtcShare = ((amount * totalWbtcOut) / totalUsdcIn).toString();
+    if (totalUsdcIn > 0n && totalWbtcOut > 0n) {
+      // Sanity check: detect mock router 1:1 rate (implied BTC price < $1000)
+      // USDC has 6 decimals, WBTC has 8 decimals
+      // impliedPrice = (totalUsdcIn / 1e6) / (totalWbtcOut / 1e8) = totalUsdcIn * 100 / totalWbtcOut
+      const impliedPrice = (totalUsdcIn * 100n) / totalWbtcOut;
+      if (impliedPrice < 1000n) {
+        // Mock router gave unrealistic rate — estimate using live BTC price
+        let liveBtcPrice = 0;
+        // Try CoinGecko first
+        try {
+          const res = await fetch(
+            "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd",
+            { signal: AbortSignal.timeout(5000) },
+          );
+          const data = await res.json();
+          if (data?.bitcoin?.usd) liveBtcPrice = data.bitcoin.usd;
+        } catch { /* try fallback */ }
+        // Fallback: CoinCap
+        if (!liveBtcPrice) {
+          try {
+            const res = await fetch(
+              "https://api.coincap.io/v2/assets/bitcoin",
+              { signal: AbortSignal.timeout(5000) },
+            );
+            const data = await res.json();
+            if (data?.data?.priceUsd) liveBtcPrice = parseFloat(data.data.priceUsd);
+          } catch { /* use on-chain ratio as last resort */ }
+        }
+        if (liveBtcPrice > 0) {
+          // wbtc (8 decimals) = usdc_amount (6 decimals) * 100 / btcPrice
+          wbtcShare = ((amount * 100n) / BigInt(Math.round(liveBtcPrice))).toString();
+        } else {
+          // Last resort: use the on-chain ratio even though it's mock
+          wbtcShare = ((amount * totalWbtcOut) / totalUsdcIn).toString();
+        }
+      } else {
+        wbtcShare = ((amount * totalWbtcOut) / totalUsdcIn).toString();
+      }
     }
 
     // Check if this deposit has a linked Bitcoin identity

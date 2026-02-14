@@ -6,7 +6,7 @@
   "scripts": {
     "deploy": "npx ts-node --esm deploy.ts",
     "deploy:live": "npx ts-node --esm deploy.ts --live",
-    "deploy:mainnet": "npx ts-node --esm deploy.ts --mainnet --live",
+    "deploy:mainnet": "npx ts-node --esm deploy.ts --mainnet --live --eth-gas",
     "keeper": "npx ts-node --esm keeper.ts",
     "keeper:loop": "npx ts-node --esm keeper.ts --loop",
     "keeper:dry-run": "npx ts-node --esm keeper.ts --dry-run",
@@ -14,10 +14,13 @@
     "solver:loop": "npx tsx solver.ts --loop",
     "solver:dry-run": "npx tsx solver.ts --dry-run",
     "relayer": "npx ts-node --esm relayer.ts",
-    "e2e": "npx ts-node --esm e2e-test.ts"
+    "e2e": "npx ts-node --esm e2e-test.ts",
+    "bot": "npx ts-node --esm bot.ts",
+    "bot:dev": "npx tsx bot.ts"
   },
   "dependencies": {
     "dotenv": "^16.4.7",
+    "grammy": "^1.21.1",
     "poseidon-lite": "^0.3.0",
     "starknet": "^7.6.4"
   },

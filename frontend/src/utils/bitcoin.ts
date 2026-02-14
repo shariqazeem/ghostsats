@@ -19,7 +19,7 @@ export async function signCommitment(btcAddress: string, commitmentHash: string)
     signMessage({
       payload: {
         address: btcAddress,
-        message: `GhostSats:COMMIT:${commitmentHash}`,
+        message: `VeilProtocol:COMMIT:${commitmentHash}`,
         network: { type: isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet4 },
       },
       onFinish: (signature) => {
@@ -66,7 +66,7 @@ export async function anchorMerkleRoot(
   const { signMessage, BitcoinNetworkType } = await import("sats-connect");
 
   const timestamp = Math.floor(Date.now() / 1000);
-  const message = `GhostSats:ANCHOR:${merkleRoot}:${timestamp}`;
+  const message = `VeilProtocol:ANCHOR:${merkleRoot}:${timestamp}`;
 
   return new Promise<string>((resolve, reject) => {
     signMessage({

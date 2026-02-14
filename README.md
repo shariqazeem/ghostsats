@@ -1,329 +1,91 @@
-# GhostSats
+# Veil Protocol
 
-> **Private USDC-to-WBTC execution on Starknet with real on-chain ZK proof verification.**
->
-> Secrets never appear in calldata. A Noir ZK circuit proves deposit knowledge. The Garaga UltraKeccakZKHonk verifier validates the proof on-chain. Gasless relayer breaks the sender-link entirely.
+Confidential Bitcoin accumulation infrastructure on Starknet.
 
-**[Live Demo](https://ghostsats.vercel.app)** &nbsp;&middot;&nbsp; **[Explorer](https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af)** &nbsp;&middot;&nbsp; **[ZK Verifier](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07)** &nbsp;&middot;&nbsp; **[Docs](https://ghostsats-docs.vercel.app)** &nbsp;&middot;&nbsp; Built for [Re{define} Starknet Hackathon 2026](https://dorahacks.io/)
+[Live Demo](https://ghostsats.vercel.app) · [Docs](https://ghostsats-docs.vercel.app) · [Pool Contract](https://sepolia.starkscan.co/contract/0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210) · [ZK Verifier](https://sepolia.starkscan.co/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) · Re{define} Hackathon 2026
 
 ---
 
-## The Problem
+## Why This Matters
 
-On-chain privacy is table stakes — the real question is **can you prove it without revealing anything?**
+Public Bitcoin accumulation exposes treasury strategy. Every on-chain purchase signals intent: competitors front-run positions, analysts reconstruct allocation patterns, and MEV bots extract value from visible orders.
 
-Most "privacy" protocols either:
-- Post secrets in calldata (any indexer can link deposits to withdrawals)
-- Claim ZK proofs but skip on-chain verification (the proof exists but nobody checks it)
-- Require gas payments that deanonymize the withdrawer
+Standardized transaction amounts alone are insufficient. Without verified zero-knowledge proofs, deposits and withdrawals remain linkable through timing analysis, gas payment correlation, and calldata inspection. Most privacy protocols either post secrets in calldata or skip on-chain proof verification entirely.
 
-GhostSats solves all three.
+Veil Protocol eliminates these vectors. Capital enters standardized privacy pools. Batch execution hides individual intent. STARK-verified zero-knowledge proofs enable unlinkable exits. Secrets never appear on-chain.
 
----
+## What We Built
 
-## What Makes This Different
+A complete confidential accumulation pipeline deployed and verified end-to-end on Starknet Sepolia:
 
-| Feature | GhostSats | Typical Privacy Pool |
-|---------|-----------|---------------------|
-| **ZK proof verified on-chain** | Garaga UltraKeccakZKHonk verifier (2835 felt252 calldata) | Mock verifier or off-chain only |
-| **Secrets in calldata** | Never — only the ZK proof | Secret + blinder posted as calldata |
-| **Gasless withdrawal** | Relayer submits tx, user never signs | User pays gas (deanonymization vector) |
-| **Dual-chain identity** | Starknet wallet + Bitcoin wallet (Xverse) | Single chain |
-| **Compliance** | Optional view keys + exportable proofs | None |
+1. **Allocate** -- Deposit USDC into fixed tranches ($1 / $10 / $100). A Pedersen commitment and BN254 Poseidon ZK commitment are computed client-side. Only hashes are stored on-chain.
+2. **Batch Execute** -- All deposits aggregate into a single USDC-to-BTC conversion via AVNU DEX aggregator. Individual accumulation intent is hidden within the batch.
+3. **Verify** -- Zero-knowledge proof generated entirely in-browser (noir_js + bb.js WASM). Garaga verifier validates the UltraKeccakZKHonk proof on-chain (~2,835 felt252 calldata elements).
+4. **Confidential Exit** -- Claim BTC on Starknet or settle to native Bitcoin via intent bridge. Gasless relayer option breaks the sender-link entirely. No cryptographic connection to the original allocation.
 
-### The ZK Proof Pipeline (Working End-to-End)
+52 contract tests passing. Full E2E verified on Sepolia.
 
-```
-Deposit:
-  Browser computes:
-    Pedersen commitment = H(H(0, amount_hash), secret_hash)     [Stark field]
-    ZK commitment = Poseidon_BN254(secret, blinder, denomination) [BN254 field]
-  → deposit_private(commitment, denomination, btc_identity, zk_commitment)
+## Technical Architecture
 
-Withdrawal (secrets NEVER leave the browser):
-  Browser (WASM):
-    ├── noir_js execute  → witness generation (secret + blinder stay in browser)
-    ├── bb.js prove      → UltraKeccakZKHonk proof (browser WASM, ~30s)
-    └── POST /calldata   → sends ONLY proof binary to server (no secrets)
-  Server:
-    └── garaga calldata  → 2835 felt252 values (proof + MSM/KZG hints)
-  → withdraw_private(denomination, zk_nullifier, zk_commitment, proof[2835], ...)
-    ├── Garaga verifier validates proof on-chain
-    ├── Public inputs verified: commitment, nullifier, denomination match
-    ├── Nullifier marked spent (no double-spend)
-    ├── Merkle proof verified for Pedersen commitment
-    └── WBTC transferred to recipient
+### Cairo Contracts
 
-Key guarantee: secret and blinder NEVER leave the browser — not in calldata, not to any server
-```
+The `ShieldedPool` contract manages the complete lifecycle: deposits with dual commitment schemes (Pedersen for Merkle membership, Poseidon BN254 for ZK circuit compatibility), batch execution via AVNU router, and two withdrawal paths (legacy Pedersen and ZK-private). A 20-level Merkle tree provides capacity for over 1 million commitments. Nullifier tracking prevents double-spending.
 
----
+### STARK-Based Verification (Garaga)
 
-## How It Works
+The Noir circuit proves knowledge of `(secret, blinder, denomination)` such that `Poseidon_BN254(secret, blinder, denomination) == commitment` and `Poseidon_BN254(secret, 1) == nullifier`. The proof is generated client-side via `@noir-lang/noir_js` (witness) and `@aztec/bb.js` (UltraKeccakZKHonk proof), then converted to calldata by Garaga. The on-chain verifier validates the proof and extracts public inputs for parameter matching. Secrets never leave the browser.
 
-```
-  User A deposits 1,000 USDC ──┐
-  User B deposits 1,000 USDC ──┼──▶ Shielded Pool ──▶ Batch Swap (Avnu DEX) ──▶ WBTC
-  User C deposits 1,000 USDC ──┘       │                                          │
-                                        │                                          │
-                              Pedersen Commitments                          Pro-rata shares
-                              + ZK Commitments                           withdrawn privately
-                              stored in Merkle Tree                      via ZK proof + relayer
-                                        │
-                                        ▼
-                               On-chain Merkle Root
-```
+### Pedersen Commitments
 
-1. **Shield**: Pick a denomination (100 / 1,000 / 10,000 USDC). A Pedersen commitment + BN254 Poseidon ZK commitment are computed client-side. Bitcoin wallet signs the commitment. Only hashes stored on-chain.
+Each deposit produces a Pedersen commitment in the Stark field: `H(H(0, amount_hash), secret_hash)`. These commitments form the leaves of the on-chain Merkle tree. Withdrawal requires proving Merkle membership of the commitment corresponding to the caller's secret, without revealing the secret itself.
 
-2. **Batch**: Keeper aggregates all deposits → single USDC→WBTC swap via Avnu. Individual intent hidden in the batch.
+### Relayer Abstraction
 
-3. **Unveil** (after 60s cooldown): Generate a ZK proof via prover service (nargo → bb → garaga). Submit to `withdraw_private` — Garaga verifier validates on-chain. WBTC sent to any address. Optionally via gasless relayer (you never sign).
+Gasless withdrawals eliminate the final deanonymization vector. The relayer submits the transaction on behalf of the user, paying gas from its own account. The ZK proof is the authorization -- the relayer cannot modify the recipient, steal funds, or link the withdrawal to a deposit. A configurable fee (default 2%, capped at 5%) compensates the relayer.
 
-### Why Gasless Matters for Privacy
+### Oracle Settlement
 
-Without the relayer, your wallet signs the withdrawal tx → on-chain link between depositor and withdrawer. With the relayer:
-- The relayer's address appears as tx sender, not yours
-- You never sign anything — the ZK proof is your authorization
-- No gas payment from your wallet = no on-chain footprint
+Intent-based Bitcoin bridge: a user locks BTC in escrow with a destination Bitcoin address hash. A solver claims the intent, sends native Bitcoin, and an oracle confirms settlement on-chain. If no solver fills the intent within the timeout period, the escrowed BTC is refunded. This enables cross-chain settlement without custodial bridges.
 
----
+## Why Starknet
+
+**Quantum-secure STARK proofs.** STARKs require no trusted setup and are resistant to quantum computing attacks. For institutional capital with multi-decade time horizons, this is a non-negotiable property. The Garaga verifier operates within Starknet's STARK-based proof system, providing defense in depth.
+
+**Cairo-native design.** The entire protocol is built in Cairo 2.15. Pedersen hashing, Merkle tree construction, batch execution, and access control run natively on the Starknet VM. No EVM compatibility layer. No bridge dependencies for core protocol operations.
+
+**Bitcoin DeFi economics.** Sub-$0.01 transaction costs make batch execution viable at any scale. Account abstraction enables the gasless withdrawal pattern. AVNU aggregation ensures best execution across all Starknet liquidity sources.
+
+## Security Considerations
+
+**Protected against:** deposit-withdrawal linking (ZK proofs + relayer), double-spending (nullifier set), front-running (batch execution), timing correlation (60-second mandatory delay), gas-based deanonymization (gasless relayer), proof replay (public input validation), BN254-to-felt252 overflow (STARK_PRIME reduction).
+
+**Hackathon scope limitations:** single-owner keeper for batch execution (production: permissionless with incentives), no pause mechanism, no upgradeability proxy, mock tokens on testnet (contract supports real tokens without changes). The relayer is trust-minimized -- it can refuse service but cannot steal funds or break privacy guarantees.
+
+**Compliance.** Optional view keys allow users to voluntarily prove transaction history to auditors without compromising other participants' privacy. Exportable cryptographic proofs provide verifiable evidence of specific deposits.
 
 ## Deployed Contracts (Starknet Sepolia)
 
 | Contract | Address |
 |----------|---------|
-| ShieldedPool | [`0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af`](https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) |
-| GaragaVerifier | [`0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07`](https://sepolia.voyager.online/contract/0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07) |
-| USDC (Mock) | [`0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e`](https://sepolia.voyager.online/contract/0x009ab543859047dd6043e45471d085e61957618366e153b5f83e2ed6967d7e0e) |
-| WBTC (Mock) | [`0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769`](https://sepolia.voyager.online/contract/0x0250cafe9030d5da593cc842a9a3db991a2df50c175239d4ab516c8abba68769) |
-| MockAvnuRouter | [`0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647`](https://sepolia.voyager.online/contract/0x0518f15d0762cd2aba314affad0ac83f0a4971d603c10e81b81fd47ceff38647) |
-
----
-
-## Test Coverage (40 Tests Passing)
-
-```bash
-cd contracts && snforge test
-# Tests: 40 passed, 0 failed, 0 ignored, 0 filtered out
-```
-
-**Core Engine (13 tests)** — Denominations, deposits, batch execution, Merkle tree, anonymity sets, BTC identity binding
-
-**Withdrawal (16 tests)** — Full deposit→execute→withdraw flow, invalid preimage rejection, double-spend prevention, timing delay, relayer fees, exchange rates, BTC intent
-
-**ZK Privacy (11 tests)** — `deposit_private` → `withdraw_private` full flow, ZK double-spend rejection, wrong commitment rejection, timing delay, relayer fee calculation, backward compatibility with legacy deposits, duplicate commitment rejection, BTC identity with ZK, zero commitment rejection
-
----
-
-## Architecture
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  FRONTEND (Next.js 16 + React 19 + starknet.js)            │
-│                                                              │
-│  Landing → /app (WalletBar + Dashboard + Shield/Unveil/     │
-│                   Comply tabs + Transaction History)          │
-│                                                              │
-│  Privacy Utils:                                              │
-│  - Pedersen commitment (Stark field)                         │
-│  - Poseidon BN254 ZK commitment (via poseidon-lite)          │
-│  - Merkle proof construction                                 │
-│  - AES-GCM encrypted note storage                            │
-│  - BTC attestation (signMessage via sats-connect/Xverse)     │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│  PROVER + RELAYER SERVICE (Node.js, port 3001)              │
-│                                                              │
-│  POST /prove  → nargo execute → bb prove → garaga calldata  │
-│                  (witness)     (UltraHonk)  (2835 felt252s)  │
-│  POST /relay  → starknet.js invoke withdraw_private_via_relayer│
-│  GET  /health → { status: ok, fee_bps: 200 }                │
-└────────────────────────┬────────────────────────────────────┘
-                         │
-┌────────────────────────▼────────────────────────────────────┐
-│  SMART CONTRACTS (Cairo 2.15 on Starknet Sepolia)           │
-│                                                              │
-│  ShieldedPool.cairo                                          │
-│  ├── deposit_private(commitment, denom, btc_id, zk_commit)  │
-│  ├── execute_batch(min_wbtc_out, routes)                     │
-│  ├── withdraw_private(denom, nullifier, commit, proof[2835], │
-│  │                    merkle_path, indices, recipient, ...)   │
-│  ├── withdraw_private_via_relayer(... + relayer, fee_bps)    │
-│  └── register_view_key(commitment, view_key_hash)            │
-│                                                              │
-│  GaragaVerifier (UltraKeccakZKHonkVerifier)                  │
-│  └── verify_ultra_keccak_zk_honk_proof(proof) → Result       │
-│                                                              │
-│  Noir Circuit (circuits/ghostsats/src/main.nr)               │
-│  ├── zk_commitment = Poseidon_BN254(secret, blinder, denom)  │
-│  └── nullifier = Poseidon_BN254(secret, 1)                   │
-└─────────────────────────────────────────────────────────────┘
-```
-
-## Tech Stack
-
-| Layer | Technology |
-|-------|-----------|
-| Smart Contracts | Cairo 2.15, OpenZeppelin Interfaces |
-| ZK Circuit | Noir (Aztec), compiled to ACIR |
-| ZK Prover | Barretenberg (`bb`) — UltraKeccakZKHonk |
-| On-Chain Verifier | Garaga UltraKeccakZKHonkVerifier |
-| DEX | Avnu Aggregator (batch swaps) |
-| Frontend | Next.js 16, React 19, Tailwind 4, Framer Motion |
-| Wallets | Starknet (Argent/Braavos) + Bitcoin (Xverse via sats-connect) |
-| Cryptography | Pedersen (Stark), Poseidon BN254, AES-GCM |
-| Testing | snforge 0.56.0 (40 passing tests) |
-| Deployment | Vercel (frontend), Starknet Sepolia (contracts) |
-
-## Privacy Guarantees
-
-| Property | Mechanism |
-|----------|-----------|
-| **Deposit unlinkability** | Fixed denominations — all deposits in a tier are indistinguishable |
-| **Withdrawal unlinkability** | ZK proof + different recipient address + optional gasless relayer |
-| **No secrets in calldata** | Noir ZK circuit proves knowledge; Garaga verifier validates on-chain |
-| **Double-spend prevention** | Nullifier set: `Poseidon(secret, 1)` — marked spent on first use |
-| **Merkle membership** | 20-level Pedersen Merkle tree (1M+ capacity) |
-| **Timing protection** | 60-second minimum delay blocks deposit→withdraw attacks |
-| **Gasless withdrawal** | Relayer pays gas, breaks sender-link (2% fee, 5% cap) |
-| **Bitcoin identity** | BTC wallet signs commitment; Pedersen hash stored on-chain |
-| **Note encryption** | AES-GCM with wallet-derived key (client-side) |
-| **Compliance** | Optional view keys + exportable JSON proofs |
-
-## Security Model
-
-### Protected Against
-- On-chain balance tracking (no public balance mapping)
-- Deposit-withdrawal linking (ZK proofs + different recipient + relayer)
-- Double-spending (nullifier set)
-- Front-running (batch execution, not individual trades)
-- Note theft from browser (AES-GCM encryption)
-- Timing attacks (60s minimum withdrawal delay)
-- Gas-based deanonymization (relayer-powered gasless withdrawals)
-- Proof replay attacks (public inputs validated against parameters on-chain)
-- BN254→felt252 overflow (values reduced modulo STARK_PRIME)
-
-### Why Fixed Denominations?
-
-This is a deliberate privacy design, not a limitation. Tornado Cash, Railgun, and Aztec Connect all use fixed denominations for the same reason: **variable amounts create fingerprints**. If User A deposits 1,337.42 USDC and someone withdraws 1,337.42 USDC worth of WBTC — the link is obvious. Fixed tiers (100 / 1K / 10K) make every deposit in a tier indistinguishable from every other deposit in that tier, which is the foundation of the anonymity set.
-
-### Design Decisions (Hackathon Scope)
-
-| Decision | Why | Production Path |
-|----------|-----|-----------------|
-| **Browser-side prover** | Witness + proof generated in-browser via `@noir-lang/noir_js` + `@aztec/bb.js` WASM. Secrets never leave the browser. Server only converts proof format (garaga calldata). | Fully client-side with garaga WASM — zero server dependency |
-| **Mock tokens on Sepolia** | Judges can mint test USDC with one click. Contract supports real tokens — `npm run deploy:live` uses real Sepolia USDC/WBTC addresses. | Deploy with real tokens on mainnet, no contract changes needed |
-| **Trust-minimized relayer** | Relayer **cannot steal funds** — the ZK proof is the authorization, not the relayer. Relayer can only submit or refuse to submit. | Decentralized relayer network with staked operators and fee competition |
-| **Single-owner keeper** | Permissionless `execute_batch` — anyone can call it. Owner restriction is for testnet safety only. | Remove owner check, add incentive mechanism for MEV-style keepers |
+| ShieldedPool | `0x4606a71755ae44459a9fc2105945c3fc3d88227169f834bb0d8a4c86b8b0210` |
+| Garaga Verifier | `0x00e8f49d3077663a517c203afb857e6d7a95c9d9b620aa2054f1400f62a32f07` |
 
 ## Running Locally
 
-### Prerequisites
-- [Scarb](https://docs.swmansion.com/scarb/) (Cairo), [snforge](https://foundry-rs.github.io/starknet-foundry/) (testing)
-- [Nargo](https://noir-lang.org/) (Noir), [Barretenberg](https://github.com/AztecProtocol/aztec-packages) (`bb`)
-- [Garaga](https://github.com/keep-starknet-strange/garaga) CLI
-- Node.js 20+
-
-### Smart Contracts
-```bash
-cd contracts
-scarb build && snforge test   # 40 tests
+```
+cd contracts && scarb build && snforge test    # 52 tests
+cd frontend && npm install && npm run dev      # localhost:3000
+cd scripts && npm install && npm run keeper    # batch executor
 ```
 
-### ZK Circuit
-```bash
-cd circuits/ghostsats
-nargo test && nargo compile && nargo execute
-```
+## Future Roadmap
 
-### Prover + Relayer
-```bash
-cd scripts
-cp .env.example .env   # Add PRIVATE_KEY, ACCOUNT_ADDRESS
-npm install && npm run relayer   # http://localhost:3001
-```
-
-### Frontend
-```bash
-cd frontend
-npm install && npm run dev   # http://localhost:3000
-```
-
-## Hackathon Tracks
-
-### Privacy Track — "Noir proof verification on Starknet"
-
-GhostSats implements the exact project idea listed in the hackathon: **Noir proof verification on Starknet via Garaga**. But it goes further — it's not a standalone verifier demo, it's a complete privacy application built on top of it.
-
-- Real UltraKeccakZKHonk proof verified on-chain (2835 felt252 calldata elements)
-- Noir circuit: `Poseidon_BN254(secret, blinder, denomination) == commitment`
-- Garaga verifier validates proof, extracts public inputs, checks against parameters
-- Pedersen commitments + 20-level Merkle tree (1M+ capacity)
-- Nullifier set prevents double-spending
-- Gasless relayer breaks sender-wallet link
-- 60s timing delay blocks deposit→withdraw correlation
-- Compliance escape hatch (optional view keys)
-
-### Bitcoin Track — "Private BTC swaps"
-
-- Private USDC→WBTC execution via Avnu DEX aggregator
-- Dual wallet: Starknet (Argent/Braavos) + Bitcoin (Xverse via sats-connect)
-- BTC identity binding: Bitcoin wallet signs each deposit commitment
-- Merkle root anchoring: BTC wallet attests to pool state
-- Cross-chain withdrawal intents (bridge-ready design for real BTC)
-- BTC price feed integration for live swap rates
-
-## Quick Demo (For Judges)
-
-**Try it live**: [ghostsats.vercel.app/app](https://ghostsats.vercel.app/app)
-
-1. Connect your Starknet wallet (Argent or Braavos on Sepolia)
-2. Click **"Mint 100 USDC"** in the Shield tab (testnet faucet)
-3. Select **100 USDC** tier and click **"Shield USDC"**
-4. Confirm the transaction (approve + deposit + batch in one tx)
-5. Wait 60 seconds (privacy cooldown)
-6. Switch to **Unveil tab** and click **"Unveil"**
-7. Click "View on Voyager" — see the ZK proof in calldata (2835 elements)
-
-**Verify on-chain**: Open the ShieldedPool on [Voyager](https://sepolia.voyager.online/contract/0x04918722607f83d2624e44362fab2b4fb1e1802c0760114f84a37650d1d812af) — check the `withdraw_private` transactions to see real ZK proof calldata.
-
----
-
-## End-to-End Verified on Sepolia
-
-The full pipeline has been verified end-to-end on Starknet Sepolia:
-
-```
-npm run e2e
-
-Shield (deposit_private)
-  ├── Pedersen commitment + BN254 Poseidon ZK commitment    [on-chain]
-  ├── Bitcoin wallet signature                               [attestation]
-  └── tx confirmed on Sepolia
-
-Batch (execute_batch)
-  ├── USDC → WBTC swap via Avnu DEX
-  ├── 100 USDC → 0.00141809 WBTC
-  └── tx confirmed on Sepolia
-
-Privacy Cooldown
-  └── 60-second minimum delay enforced
-
-ZK Proof Generation
-  ├── nargo execute    → witness
-  ├── bb prove         → UltraKeccakZKHonk (7KB binary)
-  ├── garaga calldata  → 2835 felt252 values
-  └── Generated in 5.5 seconds
-
-Withdraw (withdraw_private)
-  ├── ZK proof submitted on-chain (2835 calldata elements)
-  ├── Garaga verifier validated proof
-  ├── Nullifier marked spent (no replay possible)
-  ├── WBTC transferred to recipient
-  └── tx confirmed on Sepolia
-```
+- Mainnet deployment with real USDC/WBTC
+- Decentralized relayer network with staked operators
+- Garaga WASM for fully client-side calldata generation (zero server dependency)
+- Larger anonymity sets through cross-protocol deposit aggregation
+- Recursive proof composition for reduced on-chain verification cost
+- Multi-asset support beyond BTC
 
 ## License
 

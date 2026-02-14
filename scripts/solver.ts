@@ -172,7 +172,7 @@ async function runSolver(dryRun: boolean): Promise<boolean> {
   const privateKey = process.env.PRIVATE_KEY;
   const accountAddress = process.env.ACCOUNT_ADDRESS;
   const defaultRpc = deployedNetwork === "mainnet"
-    ? "https://starknet-mainnet.public.blastapi.io"
+    ? "https://rpc.starknet.lava.build"
     : "https://starknet-sepolia-rpc.publicnode.com";
   const rpcUrl = process.env.STARKNET_RPC_URL ?? defaultRpc;
 

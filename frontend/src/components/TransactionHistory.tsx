@@ -60,7 +60,7 @@ function HistoryEntry({ note }: { note: NoteWithStatus }) {
         {/* Info */}
         <div className="flex-1 text-left min-w-0">
           <div className="text-[13px] font-medium text-[var(--text-primary)]">
-            {isClaimed ? "Unveiled" : "Shielded"}
+            {isClaimed ? "Exited" : "Allocated"}
           </div>
           <div className="text-[11px] text-[var(--text-tertiary)]">
             Batch #{note.batchId} &middot; {formatTimestamp(note.timestamp)}
@@ -175,7 +175,7 @@ export default function TransactionHistory() {
     <div className="bg-[var(--bg-primary)] rounded-2xl border border-[var(--border-subtle)] overflow-hidden">
       <div className="px-5 py-4 border-b border-[var(--border-subtle)] flex items-center justify-between">
         <span className="text-[11px] font-semibold uppercase tracking-widest text-[var(--text-tertiary)]">
-          Transaction History
+          Capital Activity
         </span>
         <span className="text-[10px] text-[var(--text-quaternary)]">
           {notes.length} {notes.length === 1 ? "transaction" : "transactions"}

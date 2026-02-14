@@ -188,7 +188,7 @@ async function main() {
   const privateKey = process.env.PRIVATE_KEY;
   const accountAddress = process.env.ACCOUNT_ADDRESS;
   const defaultRpc = isMainnet
-    ? "https://starknet-mainnet.public.blastapi.io"
+    ? "https://rpc.starknet.lava.build"
     : "https://starknet-sepolia-rpc.publicnode.com";
   const rpcUrl = process.env.STARKNET_RPC_URL ?? defaultRpc;
   const networkName = isMainnet ? "Mainnet" : "Sepolia";
@@ -213,9 +213,15 @@ async function main() {
   console.log(`Mode: ${modeLabel}\n`);
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
+  // Use V1 (ETH gas) with --eth-gas flag, otherwise V3 (STRK gas)
+  const useEthGas = process.argv.includes("--eth-gas");
+  const txVersion = useEthGas
+    ? constants.TRANSACTION_VERSION.V1
+    : constants.TRANSACTION_VERSION.V3;
+  console.log(`Gas token: ${useEthGas ? "ETH (V1)" : "STRK (V3)"}`);
   const account = new Account(
     provider, accountAddress, privateKey,
-    undefined, constants.TRANSACTION_VERSION.V3,
+    undefined, txVersion,
   );
   const chainId = await provider.getChainId();
   console.log(`Chain ID: ${chainId}\n`);
@@ -406,7 +412,7 @@ async function main() {
 
   // Also update the frontend addresses
   const frontendAddresses = {
-    network: "sepolia",
+    network: isMainnet ? "mainnet" : "sepolia",
     contracts: {
       usdc: usdcAddress,
       wbtc: wbtcAddress,

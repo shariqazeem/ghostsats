@@ -7,7 +7,7 @@ import { useToast } from "@/context/ToastContext";
 import { computeBtcIdentityHash } from "@/utils/bitcoin";
 import { motion, AnimatePresence } from "framer-motion";
 import { markNoteClaimed, computeNullifier, buildMerkleProof } from "@/utils/privacy";
-import { generateWithdrawalProof } from "@/utils/zkProver";
+import { generateWithdrawalProof, preloadZKProver } from "@/utils/zkProver";
 import {
   type NoteWithStatus,
   checkAllNoteStatuses,
@@ -179,7 +179,7 @@ function NoteCard({
           ) : (
             <Unlock size={14} strokeWidth={1.5} />
           )}
-          {isClaiming ? "Building proof..." : "Unveil"}
+          {isClaiming ? "Building proof..." : "Execute Exit"}
         </motion.button>
       )}
     </motion.div>
@@ -224,6 +224,11 @@ export default function UnveilForm() {
   useEffect(() => {
     refreshNotes();
   }, [refreshNotes]);
+
+  // Pre-load ZK WASM modules so proof generation starts faster
+  useEffect(() => {
+    preloadZKProver();
+  }, []);
 
   // Fetch relayer fee info
   useEffect(() => {
@@ -494,7 +499,7 @@ export default function UnveilForm() {
 
       await markNoteClaimed(note.commitment, address);
       setClaimPhase("success");
-      toast("success", isBtcIntent ? "BTC intent created — solver will settle" : "WBTC withdrawn privately");
+      toast("success", isBtcIntent ? "Settlement initiated — solver will fulfill" : "Confidential exit executed");
 
       await refreshNotes();
     } catch (err: unknown) {
@@ -526,7 +531,7 @@ export default function UnveilForm() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <span className="text-xs font-medium text-[var(--text-tertiary)] uppercase tracking-wider">
-          Shielded Notes
+          Active Allocations
         </span>
         <button
           onClick={refreshNotes}
@@ -594,7 +599,7 @@ export default function UnveilForm() {
             {claimPhase === "withdrawing" && (
               <div className="flex items-center gap-2 text-sm text-[var(--text-secondary)]">
                 <Loader size={14} className="animate-spin" strokeWidth={1.5} />
-                <span>Submitting withdrawal with ZK proof ({proofDetails?.calldataElements ?? "~2835"} calldata elements)...</span>
+                <span>Executing confidential exit ({proofDetails?.calldataElements ?? "~2835"} calldata elements)...</span>
               </div>
             )}
           </motion.div>
@@ -606,38 +611,55 @@ export default function UnveilForm() {
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
           transition={spring}
-          className="rounded-xl p-4 bg-emerald-900/20 text-sm text-emerald-400 space-y-3 border border-emerald-800/30"
+          className="rounded-xl p-5 bg-emerald-900/20 text-sm text-emerald-400 space-y-4 border border-emerald-800/30"
         >
-          <div className="flex items-center gap-2">
-            <CheckCircle size={14} strokeWidth={1.5} />
-            <span className="font-medium">
-              {intentId !== null
-                ? "BTC intent created — WBTC locked in escrow"
-                : "WBTC withdrawn privately"}
-            </span>
+          {/* Privacy Guarantees — emotional closure */}
+          <div className="text-center space-y-3 py-2">
+            <div className="w-14 h-14 rounded-full bg-emerald-950/40 border border-emerald-800/30 flex items-center justify-center mx-auto">
+              <CheckCircle size={24} strokeWidth={1.5} className="text-emerald-400" />
+            </div>
+            <div className="text-[15px] font-bold text-emerald-400">
+              Confidential Exit Complete
+            </div>
+            <div className="flex items-center justify-center gap-4">
+              {[
+                { label: "Withdrawal Unlinkable", icon: Lock },
+                { label: "Position Size Obfuscated", icon: ShieldCheck },
+              ].map(({ label, icon: Icon }) => (
+                <div key={label} className="flex items-center gap-1.5">
+                  <Icon size={10} strokeWidth={2} className="text-emerald-400" />
+                  <span className="text-[10px] font-medium text-emerald-400/80">{label}</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-emerald-400/60 font-medium">
+              No on-chain observer can link this exit to your deposit.
+            </p>
           </div>
+
           {claimedWbtcAmount && (
-            <div className="text-xs text-emerald-400">
-              Received: <span className="font-[family-name:var(--font-geist-mono)] font-semibold">{(Number(claimedWbtcAmount) / 1e8).toFixed(8)}</span> BTC
+            <div className="text-center text-xs text-emerald-400">
+              Amount: <span className="font-[family-name:var(--font-geist-mono)] font-semibold text-[14px]">{(Number(claimedWbtcAmount) / 1e8).toFixed(8)}</span> BTC
             </div>
           )}
+
           {claimTxHash && (
             <a
               href={`${TX_EXPLORER}${claimTxHash}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex items-center gap-1.5 text-xs text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
+              className="flex items-center justify-center gap-1.5 text-xs text-emerald-400 hover:underline font-[family-name:var(--font-geist-mono)]"
             >
               View on Starkscan
               <ExternalLink size={10} strokeWidth={1.5} />
             </a>
           )}
 
-          {/* ZK Proof Details — the "proof of the proof" */}
+          {/* ZK Proof Details */}
           {proofDetails && (
             <div className="rounded-lg bg-emerald-900/10 p-3 space-y-2 border border-emerald-800/20">
               <div className="flex items-center gap-1.5">
-                <ShieldCheck size={11} strokeWidth={2} className="text-emerald-400" />
+                <Fingerprint size={11} strokeWidth={2} className="text-emerald-400" />
                 <span className="text-[10px] font-semibold text-emerald-400 uppercase tracking-wider">ZK Proof Verified On-Chain</span>
               </div>
               <div className="grid grid-cols-2 gap-x-4 gap-y-1">
@@ -646,7 +668,7 @@ export default function UnveilForm() {
                 <div className="text-[10px] text-emerald-400/60">Verifier</div>
                 <div className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-400">Garaga UltraKeccakZKHonk</div>
                 <div className="text-[10px] text-emerald-400/60">Method</div>
-                <div className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-400">{proofDetails.gasless ? "Gasless relayer" : "Direct withdrawal"}</div>
+                <div className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-400">{proofDetails.gasless ? "Gasless relayer" : "Direct"}</div>
               </div>
               <div className="pt-1.5 border-t border-emerald-800/20">
                 <div className="text-[9px] text-emerald-400/70 font-medium">
@@ -657,7 +679,7 @@ export default function UnveilForm() {
           )}
 
           <div className="rounded-lg bg-emerald-900/10 p-2.5 space-y-1.5 border border-emerald-800/20">
-            <div className="text-[10px] text-emerald-400 font-medium">Add WBTC token to your wallet:</div>
+            <div className="text-[10px] text-emerald-400 font-medium">Add BTC token to your wallet:</div>
             <div className="flex items-center gap-2">
               <code className="text-[10px] font-[family-name:var(--font-geist-mono)] text-emerald-300 bg-emerald-900/30 px-2 py-1 rounded flex-1 truncate">
                 {addresses.contracts.wbtc}
@@ -673,7 +695,7 @@ export default function UnveilForm() {
               </button>
             </div>
             <div className="text-[9px] text-emerald-400">
-              In Argent/Braavos: Settings → Manage tokens → Add token → paste address
+              In Argent/Braavos: Settings &rarr; Manage tokens &rarr; Add token &rarr; paste address
             </div>
           </div>
         </motion.div>
@@ -688,7 +710,7 @@ export default function UnveilForm() {
         >
           <div className="flex items-center gap-2">
             <AlertTriangle size={14} strokeWidth={1.5} />
-            <span>Withdrawal failed</span>
+            <span>Claim failed</span>
           </div>
           {claimError && (
             <div className="mt-2 text-xs">{claimError}</div>
@@ -762,11 +784,11 @@ export default function UnveilForm() {
                 <span className={`text-[11px] font-semibold uppercase tracking-wider ${
                   withdrawMode === "wbtc" ? "text-emerald-400" : "text-[var(--text-tertiary)]"
                 }`}>
-                  Claim WBTC
+                  Starknet Settlement
                 </span>
               </div>
               <p className="text-[10px] text-[var(--text-tertiary)]">
-                Receive WBTC on Starknet
+                Receive BTC on Starknet
               </p>
             </button>
             <button
@@ -782,11 +804,11 @@ export default function UnveilForm() {
                 <span className={`text-[11px] font-semibold uppercase tracking-wider ${
                   withdrawMode === "btc_intent" ? "text-[var(--accent-orange)]" : "text-[var(--text-tertiary)]"
                 }`}>
-                  Withdraw to BTC
+                  Bitcoin Settlement
                 </span>
               </div>
               <p className="text-[10px] text-[var(--text-tertiary)]">
-                Solver sends real Bitcoin
+                Settle to native Bitcoin
               </p>
             </button>
           </div>
@@ -808,7 +830,7 @@ export default function UnveilForm() {
                 className="w-full px-3 py-2 text-xs rounded-lg bg-[var(--bg-tertiary)] border border-[var(--border-subtle)] text-[var(--text-primary)] placeholder:text-[var(--text-tertiary)] font-[family-name:var(--font-geist-mono)] focus:outline-none focus:ring-1 focus:ring-[var(--accent-orange)]"
               />
               <p className="text-[10px] text-[var(--text-tertiary)]">
-                Your WBTC is locked in escrow. A solver sends BTC to this address, an oracle confirms, and the solver receives the WBTC. If no one fills, you get refunded after timeout.
+                Your BTC is locked in escrow. A solver sends native Bitcoin to this address, an oracle confirms settlement, and the solver receives the escrowed BTC. If no one fills, you get refunded after timeout.
               </p>
             </div>
           )}
@@ -869,12 +891,12 @@ export default function UnveilForm() {
               </div>
               {intentStatus === "SETTLED" && (
                 <p className="text-[10px] text-emerald-400 font-medium">
-                  BTC sent! Solver received your escrowed WBTC.
+                  Bitcoin sent! Settlement complete.
                 </p>
               )}
               {intentStatus === "EXPIRED" && (
                 <p className="text-[10px] text-red-400 font-medium">
-                  No solver filled the intent. WBTC refunded to your address.
+                  No solver filled the intent. BTC refunded to your address.
                 </p>
               )}
               {(intentStatus === "CREATED" || intentStatus === "CLAIMED") && (
@@ -894,15 +916,15 @@ export default function UnveilForm() {
         <div className="text-center py-10">
           <Loader size={20} className="animate-spin mx-auto text-[var(--text-tertiary)]" strokeWidth={1.5} />
           <p className="text-xs text-[var(--text-tertiary)] mt-3">
-            Scanning encrypted notes...
+            Loading allocations...
           </p>
         </div>
       ) : activeNotes.length === 0 && claimedNotes.length === 0 ? (
         <div className="text-center py-10">
           <Lock size={24} className="mx-auto mb-3 text-[var(--text-tertiary)]" strokeWidth={1.5} />
-          <p className="text-sm text-[var(--text-secondary)]">No shielded notes</p>
+          <p className="text-sm text-[var(--text-secondary)]">No allocations found</p>
           <p className="text-xs text-[var(--text-tertiary)] mt-1">
-            Shield assets to create your first note
+            Allocate capital first to create positions
           </p>
         </div>
       ) : (
@@ -919,7 +941,7 @@ export default function UnveilForm() {
           {claimedNotes.length > 0 && (
             <div className="mt-4 pt-4 border-t border-[var(--border-subtle)]">
               <p className="text-xs text-[var(--text-tertiary)] mb-2">
-                Previously unveiled ({claimedNotes.length})
+                Previously claimed ({claimedNotes.length})
               </p>
               {claimedNotes.map((note) => (
                 <NoteCard
@@ -936,7 +958,7 @@ export default function UnveilForm() {
 
       {!isConnected && (
         <p className="text-xs text-[var(--text-tertiary)] text-center">
-          Connect Starknet wallet to unveil assets
+          Connect wallet to execute confidential exit
         </p>
       )}
     </div>

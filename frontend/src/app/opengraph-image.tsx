@@ -1,7 +1,7 @@
 import { ImageResponse } from "next/og";
 
 export const runtime = "edge";
-export const alt = "GhostSats - Private Bitcoin Accumulation Protocol";
+export const alt = "Veil Protocol - Confidential Bitcoin Accumulation on Starknet";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -37,16 +37,16 @@ export default function OGImage() {
         {/* Logo */}
         <div style={{ display: "flex", alignItems: "center", gap: "4px", marginBottom: "24px" }}>
           <span style={{ fontSize: "48px", fontWeight: 800, color: "#FAFAFA", letterSpacing: "-0.02em" }}>
-            Ghost
+            Veil
           </span>
           <span style={{ fontSize: "48px", fontWeight: 800, color: "#FF5A00", letterSpacing: "-0.02em" }}>
-            Sats
+            {" "}Protocol
           </span>
         </div>
 
         {/* Tagline */}
         <div style={{ fontSize: "28px", color: "#A1A1AA", fontWeight: 500, marginBottom: "40px" }}>
-          Private Bitcoin Accumulation Protocol
+          Confidential Bitcoin Accumulation on Starknet
         </div>
 
         {/* ZK Verified badge */}
@@ -59,7 +59,7 @@ export default function OGImage() {
 
         {/* Feature pills */}
         <div style={{ display: "flex", gap: "12px" }}>
-          {["On-Chain ZK Proofs", "Batch Swaps", "BTC Settlement", "Starknet L2"].map(
+          {["STARK-Verified ZK Proofs", "Batch Execution", "BTC Settlement", "Cairo-Native"].map(
             (text) => (
               <div
                 key={text}

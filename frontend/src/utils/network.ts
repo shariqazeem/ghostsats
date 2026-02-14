@@ -10,7 +10,7 @@ export const EXPLORER_TX = `${EXPLORER_BASE}/tx/`;
 export const EXPLORER_CONTRACT = `${EXPLORER_BASE}/contract/`;
 
 export const RPC_URL = isMainnet
-  ? "https://starknet-mainnet.public.blastapi.io"
+  ? "https://rpc.starknet.lava.build"
   : "https://starknet-sepolia-rpc.publicnode.com";
 
 export const NETWORK_LABEL = isMainnet ? "Mainnet" : "Sepolia";

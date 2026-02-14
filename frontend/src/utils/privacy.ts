@@ -44,9 +44,9 @@ export const DENOMINATIONS: Record<number, number> = {
 };
 
 export const DENOMINATION_LABELS: Record<number, string> = {
-  0: "$1 USDC",
-  1: "$10 USDC",
-  2: "$100 USDC",
+  0: "$1",
+  1: "$10",
+  2: "$100",
 };
 
 const TREE_DEPTH = 20;
@@ -290,7 +290,7 @@ export async function getEncryptionSecret(
 
   if (signMessage) {
     try {
-      const sig = await signMessage("GhostSats note encryption key");
+      const sig = await signMessage("Veil Protocol note encryption key");
       // Use the full signature array joined as the secret
       const secret = sig.join("");
       sessionStorage.setItem(SIGNATURE_CACHE_KEY, secret);

@@ -50,7 +50,7 @@ export default function WalletBar() {
       await getAddress({
         payload: {
           purposes: [AddressPurpose.Payment],
-          message: "GhostSats: Verify your Bitcoin identity",
+          message: "Veil Protocol: Verify your Bitcoin identity",
           network: { type: isMainnet ? BitcoinNetworkType.Mainnet : BitcoinNetworkType.Testnet4 },
         },
         onFinish: (response: { addresses: Array<{ purpose: string; address: string; publicKey?: string }> }) => {
@@ -86,7 +86,7 @@ export default function WalletBar() {
       <div className="max-w-3xl mx-auto flex items-center justify-between">
         {/* Wordmark */}
         <span className="text-lg font-bold tracking-tight text-[var(--text-primary)]">
-          Ghost<span className="text-[var(--accent-orange)]">Sats</span>
+          Veil<span className="text-[var(--accent-orange)]"> Protocol</span>
         </span>
 
         {/* Identity Pill */}

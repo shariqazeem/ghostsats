@@ -74,6 +74,8 @@ export function bigintToHex(n: bigint): string {
   return "0x" + n.toString(16);
 }
 
+export { preloadProver as preloadZKProver } from "./browserProver";
+
 /**
  * Generate a withdrawal proof using browser-side ZK proving.
  *
