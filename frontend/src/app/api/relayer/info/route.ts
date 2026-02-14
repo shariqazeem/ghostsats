@@ -8,6 +8,7 @@ export async function GET() {
     pool: POOL_ADDRESS,
     fee_bps: FEE_BPS,
     relayer: account ? "online" : "offline",
+    relayerAddress: account?.address ?? null,
     rpc: RPC_URL,
   });
 }

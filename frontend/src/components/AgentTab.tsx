@@ -94,6 +94,7 @@ export default function AgentTab() {
   const [batchTxHash, setBatchTxHash] = useState<string | null>(null);
   const [btcPrice, setBtcPrice] = useState(0);
   const [autonomousMode, setAutonomousMode] = useState(true);
+  const [countdown, setCountdown] = useState(0); // live DCA delay countdown
 
   const terminalRef = useRef<HTMLDivElement>(null);
 
@@ -239,29 +240,56 @@ export default function AgentTab() {
         : "0x0";
 
       if (isDCA) {
-        // --- Sequential DCA: real delays between deposits ---
-        emitLog("think", `DCA mode: ${steps.length} sequential deposits with temporal decorrelation`);
+        // --- Autonomous DCA via relayer ---
+        // User signs ONE approval, relayer handles all deposits with real delays
+        emitLog("think", `Autonomous DCA: relayer executes ${steps.length} deposits with temporal decorrelation`);
 
-        let lastTxHash = "";
+        // Calculate total USDC needed
+        const totalRaw = steps.reduce((sum, s) => sum + BigInt(DENOMINATIONS[s.tier]), 0n);
+
+        // Step 1: Single wallet confirmation — approve relayer to spend total USDC
+        emitLog("act", `Requesting USDC approval for total $${plan.strategy.totalUsdc} (single signature)...`);
+        const relayerInfoRes = await fetch(`${RELAYER_URL}/info`);
+        const relayerInfo = await relayerInfoRes.json();
+        const relayerAddress = relayerInfo.relayerAddress;
+
+        if (!relayerAddress) throw new Error("Relayer not available");
+
+        const approveCalls = [
+          {
+            contractAddress: usdcAddress,
+            entrypoint: "approve",
+            calldata: CallData.compile({
+              spender: relayerAddress,
+              amount: { low: totalRaw, high: 0n },
+            }),
+          },
+        ];
+
+        await sendAsync(approveCalls);
+        emitLog("result", `USDC approved — relayer executing autonomously`);
+
+        // Step 2: Relayer handles all deposits with delays (no more wallet popups)
         for (let i = 0; i < steps.length; i++) {
           // Wait for delay (skip first deposit)
           if (i > 0 && steps[i].delaySeconds > 0) {
             const delay = steps[i].delaySeconds;
             emitLog("think", `Waiting ${delay}s before deposit ${i + 1} (temporal decorrelation)...`);
 
-            // Mark current step as waiting
             setExecutionSteps((prev) =>
               prev.map((s, idx) => idx === i ? { ...s, status: "waiting" } : s)
             );
             setCurrentStepIdx(i);
 
-            // Real delay with countdown
+            // Real delay with live countdown
             for (let sec = delay; sec > 0; sec--) {
+              setCountdown(sec);
               await new Promise((r) => setTimeout(r, 1000));
             }
+            setCountdown(0);
           }
 
-          // Generate note for this deposit
+          // Generate note
           const note = generatePrivateNote(
             steps[i].tier,
             0,
@@ -269,49 +297,41 @@ export default function AgentTab() {
             btcIdHash !== "0x0" ? btcIdHash : undefined,
           );
 
-          const rawAmount = BigInt(DENOMINATIONS[steps[i].tier]);
-
-          const depositCalls = [
-            {
-              contractAddress: usdcAddress,
-              entrypoint: "approve",
-              calldata: CallData.compile({
-                spender: poolAddress,
-                amount: { low: rawAmount, high: 0n },
-              }),
-            },
-            {
-              contractAddress: poolAddress,
-              entrypoint: "deposit_private",
-              calldata: CallData.compile({
-                commitment: note.commitment,
-                denomination: steps[i].tier,
-                btc_identity_hash: btcIdHash,
-                zk_commitment: note.zkCommitment!,
-              }),
-            },
-          ];
+          const rawAmount = DENOMINATIONS[steps[i].tier].toString();
 
           // Mark as executing
           setExecutionSteps((prev) =>
             prev.map((s, idx) => idx === i ? { ...s, status: "executing" } : s)
           );
           setCurrentStepIdx(i);
-          emitLog("act", `Executing deposit ${i + 1}/${steps.length}: ${steps[i].label} USDC`);
+          emitLog("act", `Relayer executing deposit ${i + 1}/${steps.length}: ${steps[i].label} USDC`);
 
-          const result = await sendAsync(depositCalls);
-          lastTxHash = result.transaction_hash;
+          // Relayer pulls USDC from user and deposits on their behalf
+          const res = await fetch(`${RELAYER_URL}/deposit`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              depositor: address,
+              commitment: note.commitment,
+              denomination: steps[i].tier,
+              btc_identity_hash: btcIdHash,
+              zk_commitment: note.zkCommitment!,
+              usdc_amount: rawAmount,
+            }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error ?? "Relayer deposit failed");
 
           await saveNote(note, address);
 
           // Mark as done
           setExecutionSteps((prev) =>
-            prev.map((s, idx) => idx === i ? { ...s, status: "done", txHash: result.transaction_hash } : s)
+            prev.map((s, idx) => idx === i ? { ...s, status: "done", txHash: data.txHash } : s)
           );
-          emitLog("result", `Deposit ${i + 1}/${steps.length} confirmed: ${result.transaction_hash.slice(0, 18)}...`);
+          emitLog("result", `Deposit ${i + 1}/${steps.length} confirmed: ${data.txHash.slice(0, 18)}...`);
         }
 
-        emitLog("result", `All ${steps.length} DCA deposits confirmed across ${steps.length} transactions`);
+        emitLog("result", `All ${steps.length} DCA deposits confirmed — fully autonomous`);
       } else {
         // --- Single multicall: all deposits in one tx ---
         emitLog("think", `Batching ${steps.length} deposit(s) in single transaction`);
@@ -614,8 +634,19 @@ export default function AgentTab() {
               </div>
             )}
 
+            {/* Live DCA countdown */}
+            {countdown > 0 && (
+              <div className="flex gap-2 py-1 text-[11px] leading-relaxed">
+                <span className="text-yellow-400 font-semibold whitespace-nowrap">[WAIT   ]</span>
+                <span className="text-yellow-400/90 flex items-center gap-2">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+                  Next deposit in {countdown}s — temporal decorrelation active
+                </span>
+              </div>
+            )}
+
             {/* Blinking cursor */}
-            {isRunning && (
+            {isRunning && countdown === 0 && (
               <div className="flex gap-2 py-0.5 text-[11px]">
                 <span className="w-2 h-3.5 bg-purple-400 animate-pulse" />
               </div>

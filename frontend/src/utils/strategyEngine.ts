@@ -209,7 +209,7 @@ export function generateAgentLog(
   logs.push({ timestamp: tick(), type: "decide", message: `Plan: ${numDeposits}x ${tier.label} deposits = $${totalUsdc} USDC` });
   logs.push({ timestamp: tick(), type: "decide", message: `Estimated yield: ${estBtc.toFixed(estBtc < 0.01 ? 6 : 4)} BTC (1% slippage buffer)` });
   if (isDCA) {
-    logs.push({ timestamp: tick(), type: "decide", message: `Timing: sequential execution with 30-120s delays (temporal decorrelation)` });
+    logs.push({ timestamp: tick(), type: "decide", message: `Timing: autonomous DCA — relayer executes with 30-120s delays (1 signature)` });
   } else {
     logs.push({ timestamp: tick(), type: "decide", message: `Timing: single atomic multicall (maximum efficiency)` });
   }
@@ -347,7 +347,7 @@ function buildReasoning(
   lines.push(``);
   lines.push(`EXECUTION PLAN`);
   if (isDCA) {
-    lines.push(`${numDeposits} sequential deposits with randomized delays (30-120s). Each deposit lands in a separate block, preventing temporal correlation analysis.`);
+    lines.push(`${numDeposits} autonomous deposits via relayer with randomized delays (30-120s). You sign once — the relayer handles execution. Each deposit lands in a separate block, preventing temporal correlation analysis.`);
   } else {
     lines.push(`${numDeposits} deposit(s) batched in a single atomic multicall for maximum efficiency.`);
   }
